@@ -174,6 +174,8 @@ function love.keypressed(key, scancode, isrepeat)
 end
 
 -- Load saved annotations
+-- On new images, run:
+-- find . -name "*.jpg" -exec basename {} \; >> annot.txt
 local f = io.open(imgpath .. '/annot.txt', 'r')
 while true do
   local s = f:read('*l')
@@ -213,6 +215,33 @@ saveannots = function ()
   f:close()
 end
 saveannots()
+
+if os.getenv('stats') ~= nil then
+  local hist = {}
+  for i = 0, 180 do hist[i] = 0 end
+  for i = 1, #annotlist do
+    local a = annot[annotlist[i]]
+    anchors = a
+    fitcircle()
+    if cx ~= nil then
+      local min, max = 180, 0
+      for j = 1, #a do
+        local angle = math.atan2(-(a[j][2] - cy), a[j][1] - cx) * (180 / math.pi)
+        angle = (angle + 90) % 360 - 90   -- Range: [-90, 270)
+        min = math.min(min, angle)
+        max = math.max(max, angle)
+      end
+      min = math.max(min, 0)
+      max = math.min(max, 180)
+      for k = math.floor(min + 0.5), math.floor(max + 0.5) do
+        hist[k] = hist[k] + 1
+      end
+    end
+  end
+  for i = 0, 180 do
+    print(i, string.rep('#', hist[i]))
+  end
+end
 
 selectedindex = 1
 for i = 1, #annotlist do
