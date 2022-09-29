@@ -6,6 +6,8 @@ love.window.setMode(
   { fullscreen = false, highdpi = true }
 )
 
+local imgpath = '../img'
+
 local path, name
 local img
 local iw, ih, isc, ioffx, ioffy
@@ -15,24 +17,12 @@ local anchorsel, anchorseloffx, anchorseloffy
 
 local cx, cy, cr  -- Fit circle
 
-local setImage = function (p)
-  path = p
-  local index = p:find("/[^/]*$")
-  if index ~= nil then
-    name = p:sub(index + 1)
-  else
-    name = p
-  end
-  local contents = io.open(p, 'r'):read('*a')
-  img = love.graphics.newImage(love.data.newByteData(contents))
-  iw, ih = img:getDimensions()
-  isc = math.min(W / iw, H / ih)
-  ioffx = (W - iw * isc) / 2
-  ioffy = (H - ih * isc) / 2
-  --anchors = {{40, 150}, {100, 250}, {200, 350}, {300, 400}}
-  anchors = {}
-  anchorsel = nil
-end
+-- Saved annotations
+local annot = {}      -- name -> list of anchors
+local annotlist = {}  -- index -> name
+local saveannots      -- Defined later
+
+local selectedindex
 
 local fitcircle = function ()
   if #anchors <= 2 then
@@ -103,10 +93,19 @@ local fitcircle = function ()
   -- print(cx, cy, cr)
 end
 
-setImage('1.png')
---fitcircle()
-
-local ptx, pty = 0, 0
+local updateimage = function ()
+  name = annotlist[selectedindex]
+  path = imgpath .. '/' .. name
+  local contents = io.open(path, 'r'):read('*a')
+  img = love.graphics.newImage(love.data.newByteData(contents))
+  iw, ih = img:getDimensions()
+  isc = math.min(W / iw, H / ih)
+  ioffx = (W - iw * isc) / 2
+  ioffy = (H - ih * isc) / 2
+  anchors = annot[name]
+  anchorsel = nil
+  fitcircle()
+end
 
 -- Screen coordinates to image coordinates
 local icoord = function (sx, sy)
@@ -124,15 +123,25 @@ end
 function love.mousepressed(x, y, button, istouch, presses)
   for i = 1, #anchors do
     local ax, ay = unpack(anchors[i])
-    if (ax - x) * (ax - x) + (ay - y) * (ay - y) <= 25 then
-      anchorsel = i
-      anchorseloffx = ax - x
-      anchorseloffy = ay - y
+    local sax, say = scoord(ax, ay)
+    if (sax - x) * (sax - x) + (say - y) * (say - y) <= 25 then
+      if button == 1 then
+        -- Select
+        anchorsel = i
+        anchorseloffx = sax - x
+        anchorseloffy = say - y
+      else
+        -- Remove
+        table.remove(anchors, i)
+        fitcircle()
+        return
+      end
       break
     end
   end
   if anchorsel == nil then
-    anchors[#anchors + 1] = {x, y}
+    local ix, iy = icoord(x, y)
+    anchors[#anchors + 1] = {ix, iy}
     anchorsel = #anchors
     anchorseloffx, anchorseloffy = 0, 0
     fitcircle()
@@ -140,17 +149,79 @@ function love.mousepressed(x, y, button, istouch, presses)
 end
 
 function love.mousemoved(x, y, button, istouch, presses)
-  ptx, pty = x, y
   if anchorsel ~= nil then
-    anchors[anchorsel][1] = x + anchorseloffx
-    anchors[anchorsel][2] = y + anchorseloffy
+    local ix, iy = icoord(x + anchorseloffx, y + anchorseloffy)
+    anchors[anchorsel][1] = ix
+    anchors[anchorsel][2] = iy
     fitcircle()
   end
 end
 
 function love.mousereleased(x, y, button, istouch, presses)
   anchorsel = nil
+  saveannots()
 end
+
+love.keyboard.setKeyRepeat(true)
+function love.keypressed(key, scancode, isrepeat)
+  if key == 'left' or key == 'up' then
+    selectedindex = (selectedindex + #annotlist - 2) % #annotlist + 1
+    updateimage()
+  elseif key == 'right' or key == 'down' then
+    selectedindex = selectedindex % #annotlist + 1
+    updateimage()
+  end
+end
+
+-- Load saved annotations
+local f = io.open(imgpath .. '/annot.txt', 'r')
+while true do
+  local s = f:read('*l')
+  if s == nil then break end
+  local index = s:find('\t')
+  if index ~= nil then
+    local name = s:sub(1, index - 1)
+    local anchors = {}
+    while index ~= nil do
+      local nextindex1 = s:find('\t', index + 1)
+      local nextindex2 = s:find('\t', nextindex1 + 1)
+      local x = tonumber(s:sub(index + 1, nextindex1 - 1))
+      local y = tonumber(s:sub(nextindex1 + 1, (nextindex2 or 0) - 1))
+      anchors[#anchors + 1] = {x, y}
+      index = nextindex2
+    end
+    annot[name] = anchors
+    annotlist[#annotlist + 1] = name
+  elseif annot[s] == nil then
+    annot[s] = {}
+    annotlist[#annotlist + 1] = s
+  end
+end
+f:close()
+
+saveannots = function ()
+  local f = io.open(imgpath .. '/annot.txt', 'w')
+  for i = 1, #annotlist do
+    local name = annotlist[i]
+    f:write(name)
+    local a = annot[name]
+    for j = 1, #a do
+      f:write('\t', a[j][1], '\t', a[j][2])
+    end
+    f:write('\n')
+  end
+  f:close()
+end
+saveannots()
+
+selectedindex = 1
+for i = 1, #annotlist do
+  if #annot[annotlist[i]] == 0 then
+    selectedindex = i
+    break
+  end
+end
+updateimage()
 
 function love.draw()
   love.graphics.clear(0.99, 0.99, 0.98)
@@ -158,13 +229,17 @@ function love.draw()
   love.graphics.draw(img, ioffx, ioffy, 0, isc)
   if cr ~= nil then
     love.graphics.setColor(0, 0, 0)
-    love.graphics.circle('line', cx, cy, cr)
+    local scx, scy = scoord(cx, cy)
+    love.graphics.circle('line', scx, scy, cr * isc)
   end
   for i = 1, #anchors do
-    local sx, sy = unpack(anchors[i])
+    local sx, sy = scoord(unpack(anchors[i]))
     love.graphics.setColor(1, 1, 1, 0.7)
     love.graphics.circle('fill', sx, sy, 5)
     love.graphics.setColor(0, 0, 0, 1)
     love.graphics.circle('line', sx, sy, 5)
   end
+  love.graphics.setColor(0, 0, 0)
+  love.graphics.print(tostring(selectedindex) .. '/' .. tostring(#annotlist), 20, 18)
+  love.graphics.print(name, 20, 36)
 end
