@@ -21,9 +21,7 @@ local anchorsel, anchorseloffx, anchorseloffy
 local cx, cy, cr  -- Fit circle
 
 -- Saved annotations
-local annot = {}      -- name -> list of anchors
-local annotlist = {}  -- index -> name
-
+local annot, annotlist
 local selectedindex
 
 local updateimage = function ()
