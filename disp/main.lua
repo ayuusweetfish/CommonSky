@@ -5,6 +5,7 @@ love.window.setMode(
   W, H,
   { fullscreen = false, highdpi = true }
 )
+local SC = love.graphics.getDPIScale()
 
 require './utils'
 
@@ -27,12 +28,23 @@ local imgs = {}
 for i = 1, #annotlist do
   local img = loadimage(annotlist[i])
   local iw, ih = img:getDimensions()
-  local icx, icy, icr = fitcircle(annot[annotlist[i]])
-  if icx ~= nil then
-    local isc = arcor / icr
-    local ioffx = -icx * isc
-    local ioffy = -icy * isc
-    imgs[i] = {img, iw, ih, isc, ioffx, ioffy}
+  local a = annot[annotlist[i]]
+  local cx, cy, cr = fitcircle(a)
+  if cx ~= nil then
+    local isc = arcor / cr
+    local ioffx = -cx * isc
+    local ioffy = -cy * isc
+    local min, max = math.pi, 0
+    for j = 1, #a do
+      local angle = math.atan2(-(a[j][2] - cy), a[j][1] - cx)
+      angle = (angle + math.pi/2) % (math.pi*2) - math.pi/2
+      min = math.min(min, angle)
+      max = math.max(max, angle)
+    end
+    min = math.max(min, 0)
+    max = math.min(max, math.pi)
+    local ianglecen = (min + max) / 2
+    imgs[i] = {img, iw, ih, isc, ioffx, ioffy, ianglecen}
   end
 end
 
@@ -59,13 +71,17 @@ function love.draw()
   love.graphics.setColor(1, 1, 1)
   local start = math.floor(T / 20)
   love.graphics.setShader(imgshader)
+  imgshader:send('arcopos', {arcox * SC, arcoy * SC})
+  imgshader:send('arcor', arcor * SC)
   --for i = 1, #imgs do
     --local item = imgs[(start + i) % #imgs + 1]
-  for i = 1, 5 do
+  for i = 1, 10 do
     local item = imgs[i]
-    local img, iw, ih, isc, ioffx, ioffy = unpack(item)
+    local img, iw, ih, isc, ioffx, ioffy, ianglecen = unpack(item)
     imgshader:send('tex_dims', {iw * isc, ih * isc})
     imgshader:send('seed', {i * 2000, i * 4000})
+    imgshader:send('time', T / 240 - i)
+    imgshader:send('cen_angle', -ianglecen)
     love.graphics.draw(img,
       arcox + ioffx,
       arcoy + ioffy,

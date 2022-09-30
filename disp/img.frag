@@ -1,6 +1,12 @@
+uniform vec2 arcopos;
+uniform float arcor;
+
 uniform vec2 tex_dims;
 uniform vec2 seed;
-uniform float rate;
+uniform float time;
+uniform float cen_angle;
+
+const float pi = acos(-1);
 
 // https://thebookofshaders.com/11/
 
@@ -87,12 +93,28 @@ vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords) {
   vec4 c = Texel(tex, texture_coords) * color;
   float headroom = 0.5;
   float rate = 1 + headroom;
+  // Edges
   float eps = 20;
   vec2 texpixcoord = texture_coords * tex_dims;
   if (texpixcoord.x < eps) rate *= texpixcoord.x / eps;
   if (texpixcoord.x > tex_dims.x - eps) rate *= (tex_dims.x - texpixcoord.x) / eps;
   if (texpixcoord.y < eps) rate *= texpixcoord.y / eps;
   if (texpixcoord.y > tex_dims.y - eps) rate *= (tex_dims.y - texpixcoord.y) / eps;
+  // Arco proximity
+  float arcodist = abs(arcor - length(screen_coords - arcopos));
+  float targetdist = 30 + exp(-1 * max(0, time - 3)) * 1000;
+  rate *= 1 - smoothstep(targetdist, targetdist + 40, arcodist);
+  // Angle proximity
+  float arcoangle = atan(
+    (screen_coords - arcopos).y,
+    (screen_coords - arcopos).x
+  );
+  arcoangle = mod(arcoangle + pi * 1.5, pi * 2) - pi * 1.5;
+  // c.rgb = vec3(-arcoangle / pi);
+  float anglerange = clamp(time * 0.3, 0, pi);
+  rate *= 1 - smoothstep(anglerange - 0.1, anglerange,
+    abs(cen_angle - arcoangle));
+  // Final processing
   float val = (snoise(seed + screen_coords / 20) + 1) / 2;
   c.a = clamp((rate - val) / headroom, 0, 1);
   return c;
