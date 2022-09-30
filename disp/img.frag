@@ -94,7 +94,7 @@ vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords) {
   float headroom = 0.5;
   float rate = 1 + headroom;
   // Edges
-  float eps = 20;
+  float eps = 10;
   vec2 texpixcoord = texture_coords * tex_dims;
   if (texpixcoord.x < eps) rate *= texpixcoord.x / eps;
   if (texpixcoord.x > tex_dims.x - eps) rate *= (tex_dims.x - texpixcoord.x) / eps;
@@ -102,8 +102,8 @@ vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords) {
   if (texpixcoord.y > tex_dims.y - eps) rate *= (tex_dims.y - texpixcoord.y) / eps;
   // Arco proximity
   float arcodist = abs(arcor - length(screen_coords - arcopos));
-  float targetdist = 30 + exp(-1 * max(0, time - 3)) * 1000;
-  rate *= 1 - smoothstep(targetdist, targetdist + 40, arcodist);
+  float targetdist = 15 + exp(-1 * max(0, time - 3)) * 500;
+  rate *= 1 - smoothstep(targetdist, targetdist + 20, arcodist);
   // Angle proximity
   float arcoangle = atan(
     (screen_coords - arcopos).y,
@@ -120,7 +120,7 @@ vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords) {
   rate *= clamp(-arcoangle / 0.01 + 1, 0, 1);
   rate *= clamp((pi + arcoangle) / 0.01 + 1, 0, 1);
   // Final processing
-  float val = (snoise(seed + screen_coords / 20) + 1) / 2;
+  float val = (snoise(seed + screen_coords / 10) + 1) / 2;
   c.a = clamp((rate - val) / headroom, 0, 1);
   return c;
 }

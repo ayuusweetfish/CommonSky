@@ -3,7 +3,7 @@ local H = 720
 
 love.window.setMode(
   W, H,
-  { fullscreen = false, highdpi = true }
+  { fullscreen = false, highdpi = false }
 )
 local SC = love.graphics.getDPIScale()
 
@@ -25,7 +25,8 @@ local arcor = W * 0.4
 local annot, annotlist = loadannots(annotpath)
 local imgs = {}
 for i = 1, #annotlist do
-  local img = loadimage(annotlist[i])
+  local img = loadimage(annotlist[i], { mipmap = true })
+  img:setFilter('linear', 'linear')
   local iw, ih = img:getDimensions()
   local a = annot[annotlist[i]]
   local cx, cy, cr = fitcircle(a)
@@ -71,16 +72,18 @@ end
 local imgshadersrc = love.filesystem.read('img.frag')
 local imgshader = love.graphics.newShader(imgshadersrc)
 
-function love.draw()
+local canvasfixed = love.graphics.newCanvas()
+local lastfixed = 0
+
+local draw = function ()
   love.graphics.clear(0.1, 0.1, 0.15)
   love.graphics.setColor(1, 1, 1)
-  local start = math.floor(T / 20)
+  love.graphics.setShader(nil)
+  love.graphics.draw(canvasfixed, 0, 0)
   love.graphics.setShader(imgshader)
   imgshader:send('arcopos', {arcox * SC, arcoy * SC})
   imgshader:send('arcor', arcor * SC)
-  --for i = 1, #imgs do
-    --local item = imgs[(start + i) % #imgs + 1]
-  for i = 1, 10 do
+  local drawimg = function (i)
     local item = imgs[i]
     local img, iw, ih, isc, ioffx, ioffy, ianglecen, ianglespan = unpack(item)
     imgshader:send('tex_dims', {iw * isc, ih * isc})
@@ -93,5 +96,17 @@ function love.draw()
       arcoy + ioffy,
       0, isc)
   end
+  for i = lastfixed + 1, math.min(#imgs, lastfixed + 12) do
+    drawimg(i)
+  end
+  local fixed = math.floor(T / 240 - 10)
+  if fixed > lastfixed then
+    love.graphics.setCanvas(canvasfixed)
+    drawimg(fixed)
+    love.graphics.setCanvas(nil)
+    lastfixed = fixed
+  end
   love.graphics.setShader(nil)
 end
+
+love.draw = draw
