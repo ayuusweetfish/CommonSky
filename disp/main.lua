@@ -19,7 +19,7 @@ local loadimage = function (name)
   return img
 end
 
-local arcox, arcoy = W * 0.5, H * 0.75
+local arcox, arcoy = W * 0.5, H * 0.8
 local arcor = W * 0.4
 
 local annot, annotlist = loadannots(annotpath)
@@ -105,7 +105,7 @@ local draw = function ()
     drawimg(i)
   end
   local fixed = math.floor((T / 240 - freezeafter) / enterinterval)
-  if fixed > lastfixed then
+  if fixed > lastfixed and fixed <= #imgs then
     love.graphics.setCanvas(canvasfixed)
     drawimg(fixed)
     love.graphics.setCanvas(nil)
@@ -115,12 +115,18 @@ local draw = function ()
 end
 
 if os.getenv('record') ~= nil then
-  for i = 0, 240 * (enterinterval * #imgs + freezeafter) do
+  love.update = function () end
+  love.draw = function ()
     update()
-    if i % 8 == 0 then
-      love.graphics.captureScreenshot(string.format('arco-iris-%03d.png', i))
+    if T % 8 == 0 then
+      draw()
+      local name = string.format('arco-iris-%03d.png', T)
+      print(name)
+      love.graphics.captureScreenshot(name)
     end
-    update()
+    if T >= 240 * (enterinterval * #imgs + freezeafter) then
+      love.event.quit()
+    end
   end
 else
   love.draw = draw
