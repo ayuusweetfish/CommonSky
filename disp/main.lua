@@ -88,10 +88,13 @@ local totaltime = 240 * (enterinterval * #imgs + freezeafter)
 local draw = function ()
   love.graphics.clear(0.1, 0.1, 0.15)
   love.graphics.setColor(1, 1, 1)
-  love.graphics.setBlendMode('alpha')
 
+  love.graphics.setBlendMode('alpha', 'premultiplied')
   love.graphics.setCanvas(canvasupper)
+  love.graphics.clear(0, 0, 0, 0)
+  love.graphics.setShader(nil)
   love.graphics.draw(canvasfrozen, 0, 0)
+  love.graphics.setBlendMode('alpha')
   love.graphics.setShader(imgshader)
   imgshader:send('arcopos', {arcox * SC, arcoy * SC})
   imgshader:send('arcor', arcor * SC)
@@ -115,6 +118,7 @@ local draw = function ()
   end
   local frozen = math.floor((T / 240 - freezeafter) / enterinterval)
   if frozen > lastfrozen and frozen <= #imgs then
+    love.graphics.setBlendMode('alpha')
     love.graphics.setCanvas(canvasfrozen)
     drawimg(frozen)
     lastfrozen = frozen
