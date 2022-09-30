@@ -59,9 +59,13 @@ function love.draw()
   love.graphics.setColor(1, 1, 1)
   local start = math.floor(T / 20)
   love.graphics.setShader(imgshader)
-  for i = 1, #imgs do
-    local img, iw, ih, isc, ioffx, ioffy = unpack(imgs[(start + i) % #imgs + 1])
-    imgshader:send('tex_dims', {iw, ih})
+  --for i = 1, #imgs do
+    --local item = imgs[(start + i) % #imgs + 1]
+  for i = 1, 5 do
+    local item = imgs[i]
+    local img, iw, ih, isc, ioffx, ioffy = unpack(item)
+    imgshader:send('tex_dims', {iw * isc, ih * isc})
+    imgshader:send('seed', {i * 2000, i * 4000})
     love.graphics.draw(img,
       arcox + ioffx,
       arcoy + ioffy,

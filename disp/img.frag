@@ -1,4 +1,5 @@
 uniform vec2 tex_dims;
+uniform vec2 seed;
 uniform float rate;
 
 // https://thebookofshaders.com/11/
@@ -84,16 +85,15 @@ float lerp(float x, float a, float b)
 
 vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords) {
   vec4 c = Texel(tex, texture_coords) * color;
-  float rate = 1;
+  float headroom = 0.5;
+  float rate = 1 + headroom;
   float eps = 20;
   vec2 texpixcoord = texture_coords * tex_dims;
   if (texpixcoord.x < eps) rate *= texpixcoord.x / eps;
   if (texpixcoord.x > tex_dims.x - eps) rate *= (tex_dims.x - texpixcoord.x) / eps;
   if (texpixcoord.y < eps) rate *= texpixcoord.y / eps;
   if (texpixcoord.y > tex_dims.y - eps) rate *= (tex_dims.y - texpixcoord.y) / eps;
-  c.a *= lerp(
-    rate,
-    (snoise(screen_coords / 20) + 1) / 2,
-    1) * rate;
+  float val = (snoise(seed + screen_coords / 20) + 1) / 2;
+  c.a = clamp((rate - val) / headroom, 0, 1);
   return c;
 }
