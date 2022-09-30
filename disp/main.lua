@@ -72,8 +72,8 @@ end
 local imgshadersrc = love.filesystem.read('img.frag')
 local imgshader = love.graphics.newShader(imgshadersrc)
 
-local canvasfixed = love.graphics.newCanvas()
-local lastfixed = 0
+local canvasfrozen = love.graphics.newCanvas()
+local lastfrozen = 0
 
 local freezeafter = 12
 local enterinterval = 0.4
@@ -83,7 +83,7 @@ local draw = function ()
   love.graphics.setColor(1, 1, 1)
   love.graphics.setShader(nil)
   love.graphics.setBlendMode('alpha', 'premultiplied')
-  love.graphics.draw(canvasfixed, 0, 0)
+  love.graphics.draw(canvasfrozen, 0, 0)
   love.graphics.setBlendMode('alpha')
   love.graphics.setShader(imgshader)
   imgshader:send('arcopos', {arcox * SC, arcoy * SC})
@@ -101,18 +101,18 @@ local draw = function ()
       arcoy + ioffy,
       0, isc)
   end
-  for i = lastfixed + 1,
-    math.min(#imgs, lastfixed + freezeafter / enterinterval + 1)
+  for i = lastfrozen + 1,
+    math.min(#imgs, lastfrozen + freezeafter / enterinterval + 1)
   do
     drawimg(i)
   end
-  local fixed = math.floor((T / 240 - freezeafter) / enterinterval)
-  if fixed > lastfixed and fixed <= #imgs then
+  local frozen = math.floor((T / 240 - freezeafter) / enterinterval)
+  if frozen > lastfrozen and frozen <= #imgs then
     love.graphics.setBlendMode('alpha')
-    love.graphics.setCanvas(canvasfixed)
-    drawimg(fixed)
+    love.graphics.setCanvas(canvasfrozen)
+    drawimg(frozen)
     love.graphics.setCanvas(nil)
-    lastfixed = fixed
+    lastfrozen = frozen
   end
   love.graphics.setShader(nil)
 end
