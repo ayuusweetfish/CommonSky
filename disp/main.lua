@@ -51,15 +51,21 @@ function love.update(dt)
   end
 end
 
+local imgshadersrc = love.filesystem.read('img.frag')
+local imgshader = love.graphics.newShader(imgshadersrc)
+
 function love.draw()
   love.graphics.clear(0.1, 0.1, 0.15)
   love.graphics.setColor(1, 1, 1)
-  local start = math.floor(T / 10)
+  local start = math.floor(T / 20)
+  love.graphics.setShader(imgshader)
   for i = 1, #imgs do
     local img, iw, ih, isc, ioffx, ioffy = unpack(imgs[(start + i) % #imgs + 1])
+    imgshader:send('tex_dims', {iw, ih})
     love.graphics.draw(img,
       arcox + ioffx,
       arcoy + ioffy,
       0, isc)
   end
+  love.graphics.setShader(nil)
 end
