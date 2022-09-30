@@ -75,6 +75,9 @@ local imgshader = love.graphics.newShader(imgshadersrc)
 local canvasfixed = love.graphics.newCanvas()
 local lastfixed = 0
 
+local freezeafter = 10
+local enterinterval = 0.4
+
 local draw = function ()
   love.graphics.clear(0.1, 0.1, 0.15)
   love.graphics.setColor(1, 1, 1)
@@ -88,7 +91,7 @@ local draw = function ()
     local img, iw, ih, isc, ioffx, ioffy, ianglecen, ianglespan = unpack(item)
     imgshader:send('tex_dims', {iw * isc, ih * isc})
     imgshader:send('seed', {i * 2000, i * 4000})
-    imgshader:send('time', T / 240 - i)
+    imgshader:send('time', T / 240 - i * enterinterval)
     imgshader:send('angle_cen', -ianglecen)
     imgshader:send('angle_span', ianglespan)
     love.graphics.draw(img,
@@ -96,10 +99,12 @@ local draw = function ()
       arcoy + ioffy,
       0, isc)
   end
-  for i = lastfixed + 1, math.min(#imgs, lastfixed + 12) do
+  for i = lastfixed + 1,
+    math.min(#imgs, lastfixed + freezeafter / enterinterval + 1)
+  do
     drawimg(i)
   end
-  local fixed = math.floor(T / 240 - 10)
+  local fixed = math.floor((T / 240 - freezeafter) / enterinterval)
   if fixed > lastfixed then
     love.graphics.setCanvas(canvasfixed)
     drawimg(fixed)
@@ -109,4 +114,14 @@ local draw = function ()
   love.graphics.setShader(nil)
 end
 
-love.draw = draw
+if os.getenv('record') ~= nil then
+  for i = 0, 240 * (enterinterval * #imgs + freezeafter) do
+    update()
+    if i % 8 == 0 then
+      love.graphics.captureScreenshot(string.format('arco-iris-%03d.png', i))
+    end
+    update()
+  end
+else
+  love.draw = draw
+end
