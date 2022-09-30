@@ -4,7 +4,7 @@ uniform float arcor;
 uniform vec2 tex_dims;
 uniform vec2 seed;
 uniform float time;
-uniform float cen_angle;
+uniform float angle_cen, angle_span;
 
 const float pi = acos(-1);
 
@@ -110,10 +110,15 @@ vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords) {
     (screen_coords - arcopos).x
   );
   arcoangle = mod(arcoangle + pi * 1.5, pi * 2) - pi * 1.5;
-  // c.rgb = vec3(-arcoangle / pi);
-  float anglerange = clamp(time * 0.3, 0, pi);
-  rate *= 1 - smoothstep(anglerange - 0.1, anglerange,
-    abs(cen_angle - arcoangle));
+  float anglerange = clamp(min(
+    time * 0.3 - 0.1,
+    angle_span - 0.05 + 20 * exp(5 - time)
+  ), -0.1, pi);
+  rate *= 1 - smoothstep(anglerange, anglerange + 0.1,
+    abs(angle_cen - arcoangle));
+  // Clamp angle
+  rate *= clamp(-arcoangle / 0.01 + 1, 0, 1);
+  rate *= clamp((pi + arcoangle) / 0.01 + 1, 0, 1);
   // Final processing
   float val = (snoise(seed + screen_coords / 20) + 1) / 2;
   c.a = clamp((rate - val) / headroom, 0, 1);

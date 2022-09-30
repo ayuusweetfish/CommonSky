@@ -12,8 +12,6 @@ require './utils'
 local imgpath = '../img'
 local annotpath = imgpath .. '/annot.txt'
 
-local annot, annotlist = loadannots(annotpath)
-
 local loadimage = function (name)
   path = imgpath .. '/' .. name
   local contents = io.open(path, 'r'):read('*a')
@@ -21,9 +19,10 @@ local loadimage = function (name)
   return img
 end
 
-local arcox, arcoy = W * 0.5, H * 0.7
+local arcox, arcoy = W * 0.5, H * 0.75
 local arcor = W * 0.4
 
+local annot, annotlist = loadannots(annotpath)
 local imgs = {}
 for i = 1, #annotlist do
   local img = loadimage(annotlist[i])
@@ -44,9 +43,15 @@ for i = 1, #annotlist do
     min = math.max(min, 0)
     max = math.min(max, math.pi)
     local ianglecen = (min + max) / 2
-    imgs[i] = {img, iw, ih, isc, ioffx, ioffy, ianglecen}
+    local ianglespan = (max - min) / 2
+    imgs[i] = {img, iw, ih, isc, ioffx, ioffy, ianglecen, ianglespan}
   end
 end
+
+-- Sort by descending size
+table.sort(imgs, function (a, b)
+  return a[2] * a[3] * a[4] * a[4] > b[2] * b[3] * b[4] * b[4]
+end)
 
 local T = 0
 
@@ -77,11 +82,12 @@ function love.draw()
     --local item = imgs[(start + i) % #imgs + 1]
   for i = 1, 10 do
     local item = imgs[i]
-    local img, iw, ih, isc, ioffx, ioffy, ianglecen = unpack(item)
+    local img, iw, ih, isc, ioffx, ioffy, ianglecen, ianglespan = unpack(item)
     imgshader:send('tex_dims', {iw * isc, ih * isc})
     imgshader:send('seed', {i * 2000, i * 4000})
     imgshader:send('time', T / 240 - i)
-    imgshader:send('cen_angle', -ianglecen)
+    imgshader:send('angle_cen', -ianglecen)
+    imgshader:send('angle_span', ianglespan)
     love.graphics.draw(img,
       arcox + ioffx,
       arcoy + ioffy,
