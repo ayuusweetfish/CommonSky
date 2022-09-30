@@ -19,7 +19,7 @@ local loadimage = function (name)
   return img
 end
 
-local arcox, arcoy = W * 0.5, H * 0.8
+local arcox, arcoy = W * 0.5, H * 0.72
 local arcor = W * 0.4
 
 local annot, annotlist = loadannots(annotpath)
@@ -69,22 +69,29 @@ function love.update(dt)
   end
 end
 
+-- Separated since love.filesystem.read returns contents and length
 local imgshadersrc = love.filesystem.read('img.frag')
 local imgshader = love.graphics.newShader(imgshadersrc)
+local uppershadersrc = love.filesystem.read('upper.frag')
+local uppershader = love.graphics.newShader(uppershadersrc)
 
 local canvasfrozen = love.graphics.newCanvas()
 local lastfrozen = 0
 
+local canvasupper = love.graphics.newCanvas()
+
 local freezeafter = 12
 local enterinterval = 0.4
+
+local totaltime = 240 * (enterinterval * #imgs + freezeafter)
 
 local draw = function ()
   love.graphics.clear(0.1, 0.1, 0.15)
   love.graphics.setColor(1, 1, 1)
-  love.graphics.setShader(nil)
-  love.graphics.setBlendMode('alpha', 'premultiplied')
-  love.graphics.draw(canvasfrozen, 0, 0)
   love.graphics.setBlendMode('alpha')
+
+  love.graphics.setCanvas(canvasupper)
+  love.graphics.draw(canvasfrozen, 0, 0)
   love.graphics.setShader(imgshader)
   imgshader:send('arcopos', {arcox * SC, arcoy * SC})
   imgshader:send('arcor', arcor * SC)
@@ -108,13 +115,18 @@ local draw = function ()
   end
   local frozen = math.floor((T / 240 - freezeafter) / enterinterval)
   if frozen > lastfrozen and frozen <= #imgs then
-    love.graphics.setBlendMode('alpha')
     love.graphics.setCanvas(canvasfrozen)
     drawimg(frozen)
-    love.graphics.setCanvas(nil)
     lastfrozen = frozen
   end
+  love.graphics.setBlendMode('alpha', 'premultiplied')
+  love.graphics.setCanvas(nil)
   love.graphics.setShader(nil)
+  love.graphics.draw(canvasupper, 0, 0)
+  love.graphics.setShader(uppershader)
+  uppershader:send('time', T / 240)
+  uppershader:send('texdevrate', math.exp(-(T / totaltime)))
+  love.graphics.draw(canvasupper, 0, 0)
 end
 
 if os.getenv('record') ~= nil then
@@ -129,7 +141,7 @@ if os.getenv('record') ~= nil then
       print(name)
       love.graphics.captureScreenshot(name)
     end
-    if T >= 240 * (enterinterval * #imgs + freezeafter) then
+    if T >= totaltime then
       love.event.quit()
     end
   end
