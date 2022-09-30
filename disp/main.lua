@@ -75,14 +75,16 @@ local imgshader = love.graphics.newShader(imgshadersrc)
 local canvasfixed = love.graphics.newCanvas()
 local lastfixed = 0
 
-local freezeafter = 10
+local freezeafter = 12
 local enterinterval = 0.4
 
 local draw = function ()
   love.graphics.clear(0.1, 0.1, 0.15)
   love.graphics.setColor(1, 1, 1)
   love.graphics.setShader(nil)
+  love.graphics.setBlendMode('alpha', 'premultiplied')
   love.graphics.draw(canvasfixed, 0, 0)
+  love.graphics.setBlendMode('alpha')
   love.graphics.setShader(imgshader)
   imgshader:send('arcopos', {arcox * SC, arcoy * SC})
   imgshader:send('arcor', arcor * SC)
@@ -106,6 +108,7 @@ local draw = function ()
   end
   local fixed = math.floor((T / 240 - freezeafter) / enterinterval)
   if fixed > lastfixed and fixed <= #imgs then
+    love.graphics.setBlendMode('alpha')
     love.graphics.setCanvas(canvasfixed)
     drawimg(fixed)
     love.graphics.setCanvas(nil)
@@ -116,11 +119,13 @@ end
 
 if os.getenv('record') ~= nil then
   love.update = function () end
+  local frame = 0
   love.draw = function ()
     update()
     if T % 8 == 0 then
       draw()
-      local name = string.format('arco-iris-%03d.png', T)
+      frame = frame + 1
+      local name = string.format('arco-iris-%06d.png', frame)
       print(name)
       love.graphics.captureScreenshot(name)
     end
