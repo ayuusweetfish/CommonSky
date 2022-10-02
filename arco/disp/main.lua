@@ -15,8 +15,8 @@ local annotpath = imgpath .. '/annot.txt'
 local loadimage = function (name)
   path = imgpath .. '/' .. name
   local contents = io.open(path, 'r'):read('*a')
-  local img = love.graphics.newImage(love.data.newByteData(contents))
-  return img
+  local imgdata = love.image.newImageData(love.data.newByteData(contents))
+  return imgdata
 end
 
 local arcox, arcoy = W * 0.5, H * 0.72
@@ -25,9 +25,8 @@ local arcor = W * 0.4
 local annot, annotlist = loadannots(annotpath)
 local imgs = {}
 for i = 1, #annotlist do
-  local img = loadimage(annotlist[i], { mipmap = true })
-  img:setFilter('linear', 'linear')
-  local iw, ih = img:getDimensions()
+  local imgdata = loadimage(annotlist[i], { mipmap = true })
+  local iw, ih = imgdata:getDimensions()
   local a = annot[annotlist[i]]
   local cx, cy, cr = fitcircle(a)
   if cx ~= nil then
@@ -45,7 +44,7 @@ for i = 1, #annotlist do
     max = math.min(max, math.pi)
     local ianglecen = (min + max) / 2
     local ianglespan = (max - min) / 2
-    imgs[i] = {img, iw, ih, isc, ioffx, ioffy, ianglecen, ianglespan}
+    imgs[i] = {imgdata, iw, ih, isc, ioffx, ioffy, ianglecen, ianglespan}
   end
 end
 
@@ -85,6 +84,12 @@ local enterinterval = 0.4
 
 local totaltime = 240 * (enterinterval * #imgs + freezeafter)
 
+local logstats = function ()
+  local stats = love.graphics.getStats()
+  print('tex mem: ', stats.texturememory)
+  print('img: ', stats.images)
+end
+
 local draw = function ()
   love.graphics.clear(0.1, 0.1, 0.15)
   love.graphics.setColor(1, 1, 1)
@@ -98,9 +103,16 @@ local draw = function ()
   love.graphics.setShader(imgshader)
   imgshader:send('arcopos', {arcox * SC, arcoy * SC})
   imgshader:send('arcor', arcor * SC)
-  local drawimg = function (i)
+  local drawimg = function (i, freeze)
     local item = imgs[i]
     local img, iw, ih, isc, ioffx, ioffy, ianglecen, ianglespan = unpack(item)
+    if not img:typeOf('Image') then
+      -- Create Image from ImageData
+      img = love.graphics.newImage(img, { mipmaps = true })
+      img:setFilter('linear', 'linear')
+      item[1] = img
+      -- print('create') logstats()
+    end
     imgshader:send('tex_dims', {iw * isc, ih * isc})
     imgshader:send('seed', {i * 2000, i * 4000})
     imgshader:send('time', T / 240 - i * enterinterval)
@@ -110,17 +122,23 @@ local draw = function ()
       arcox + ioffx,
       arcoy + ioffy,
       0, isc)
+    if freeze then
+      -- Release Image object, freeing GPU texture memory
+      img:release()
+      -- print('freeze') logstats()
+      item[1] = nil
+    end
   end
   for i = lastfrozen + 1,
     math.min(#imgs, lastfrozen + freezeafter / enterinterval + 1)
   do
-    drawimg(i)
+    drawimg(i, false)
   end
   local frozen = math.floor((T / 240 - freezeafter) / enterinterval)
   if frozen > lastfrozen and frozen <= #imgs then
     love.graphics.setBlendMode('alpha')
     love.graphics.setCanvas(canvasfrozen)
-    drawimg(frozen)
+    drawimg(frozen, true)
     lastfrozen = frozen
   end
   love.graphics.setBlendMode('alpha', 'premultiplied')
