@@ -120,6 +120,9 @@ void update_and_draw()
       if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         sel_cat = hover_cat;
       }
+      if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
+        refi_clear_cat(hover_cat);
+      }
     } else {
       hover_axy = -1;
       for (long i = 0; i < nr_axy && i < AXY_LIMIT; i++) {
@@ -127,7 +130,7 @@ void update_and_draw()
         if (dsq < dsq_best) { dsq_best = dsq; hover_axy = i; }
       }
       if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-        refi_match(sel_cat, hover_axy);
+        if (hover_axy != -1) refi_match(sel_cat, hover_axy);
         sel_cat = hover_cat = hover_axy = -1;
       }
     }
