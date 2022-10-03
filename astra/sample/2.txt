@@ -1,0 +1,1 @@
+solve-field --scale-low 10 --tweak-order 4 --crpix-center 2.png

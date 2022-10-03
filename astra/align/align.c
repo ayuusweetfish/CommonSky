@@ -38,19 +38,30 @@ double *data_axy;
 #define axy_x(_i) data_axy[(_i) * 2 + 0]
 #define axy_y(_i) data_axy[(_i) * 2 + 1]
 
-const char *col_names_corr[] = {"index_x", "index_y", "field_id", "index_ra", "index_dec", NULL};
+const char *col_names_rdls[] = {"RA", "DEC", NULL};
+long nr_rdls;
+double *data_rdls;
+#define rdls_ra(_i)   data_rdls[(_i) * 2 + 0]
+#define rdls_dec(_i)  data_rdls[(_i) * 2 + 1]
+
+const char *col_names_corr[] = {"index_x", "index_y", "field_id", "index_id", "index_ra", "index_dec", NULL};
 long nr_corr;
 double *data_corr;
-#define corr_x(_i)      data_corr[(_i) * 5 + 0]
-#define corr_y(_i)      data_corr[(_i) * 5 + 1]
-#define corr_axyid(_i)  (long)data_corr[(_i) * 5 + 2]
-#define corr_ra(_i)     data_corr[(_i) * 5 + 3]
-#define corr_dec(_i)    data_corr[(_i) * 5 + 4]
+#define corr_x(_i)      data_corr[(_i) * 6 + 0]
+#define corr_y(_i)      data_corr[(_i) * 6 + 1]
+#define corr_axyid(_i)  (long)data_corr[(_i) * 6 + 2]
+#define corr_catid(_i)  (long)data_corr[(_i) * 6 + 3]
+#define corr_ra(_i)     data_corr[(_i) * 6 + 4]
+#define corr_dec(_i)    data_corr[(_i) * 6 + 5]
 
 // Auxiliary data
 
 const int AXY_LIMIT = 200;
 bool axy_matched[AXY_LIMIT] = { false };
+
+// Reverse lookup of catalogue (rdls) records in correltaion table
+// -1 if not present
+int *corr_id;
 
 // Refinement
 int refi_axy_match[AXY_LIMIT];
@@ -155,24 +166,24 @@ void fit()
   polyfit(n, u, v, ord, poly_coeff);
 
   if (applied == NULL) {
-    applied = (double *)malloc(sizeof(double) * nr_corr * 2);
+    applied = (double *)malloc(sizeof(double) * nr_rdls * 2);
     float ra_min, ra_max;
     float dec_min, dec_max;
     ra_min = dec_min = 9999;
     ra_max = dec_max = -9999;
-    for (long i = 0; i < nr_corr; i++) {
-      if (corr_ra(i) < ra_min) ra_min = corr_ra(i);
-      if (corr_ra(i) > ra_max) ra_max = corr_ra(i);
-      if (corr_dec(i) < dec_min) dec_min = corr_dec(i);
-      if (corr_dec(i) > dec_max) dec_max = corr_dec(i);
+    for (long i = 0; i < nr_rdls; i++) {
+      if (rdls_ra(i) < ra_min) ra_min = rdls_ra(i);
+      if (rdls_ra(i) > ra_max) ra_max = rdls_ra(i);
+      if (rdls_dec(i) < dec_min) dec_min = rdls_dec(i);
+      if (rdls_dec(i) > dec_max) dec_max = rdls_dec(i);
     }
     // Value range guarantees precise arithmetic
     grid_ra_min = floor(ra_min / 10) * 10;
     grid_ra_max = ceil(ra_max / 10) * 10;
     grid_dec_min = floor(dec_min / 10) * 10;
     grid_dec_max = ceil(dec_max / 10) * 10;
-    // printf("%.4lf %.4lf\n", grid_ra_min, grid_ra_max);
-    // printf("%.4lf %.4lf\n", grid_dec_min, grid_dec_max);
+    // printf("%4d %4d\n", grid_ra_min, grid_ra_max);
+    // printf("%4d %4d\n", grid_dec_min, grid_dec_max);
     grid_ra_ngroups = (grid_ra_max - grid_ra_min) / 10 + 1;
     grid_dec_ngroups = (grid_dec_max - grid_dec_min) / 10 + 1;
     grid_ra_applied = (double *)malloc(
@@ -181,11 +192,11 @@ void fit()
       sizeof(double) * grid_dec_ngroups * GRID_SUBDIV * 2);
   }
 
-  for (long i = 0; i < nr_corr; i++) {
-    applied[i * 2 + 0] = corr_ra(i);
-    applied[i * 2 + 1] = corr_dec(i);
+  for (long i = 0; i < nr_rdls; i++) {
+    applied[i * 2 + 0] = rdls_ra(i);
+    applied[i * 2 + 1] = rdls_dec(i);
   }
-  polyapply(nr_corr, applied, ord, poly_coeff);
+  polyapply(nr_rdls, applied, ord, poly_coeff);
 
   for (int i = 0; i < grid_ra_ngroups; i++) {
     for (int j = 0; j < GRID_SUBDIV; j++) {
@@ -398,14 +409,15 @@ void update_and_draw()
       if (refi_axy_match[i] != -1)
         DrawLineEx(
           scale(axy_x(i), axy_y(i)),
-          scale(applied[refi_axy_match[i] * 2 + 0] * iw,
-                applied[refi_axy_match[i] * 2 + 1] * ih),
+          scale(applied[corr_catid(refi_axy_match[i]) * 2 + 0] * iw,
+                applied[corr_catid(refi_axy_match[i]) * 2 + 1] * ih),
           2, GREEN);
     }
     // Catalogue objects
-    for (long i = 0; i < nr_corr; i++) {
+    for (long i = 0; i < nr_rdls; i++) {
       DrawRing(scale(applied[i * 2 + 0] * iw, applied[i * 2 + 1] * ih),
-        2, 4, 0, 360, 12, refi_cat_match[i] != -1 ? GREEN : LIME);
+        2, 4, 0, 360, 12,
+        corr_id[i] != -1 && refi_cat_match[corr_id[i]] != -1 ? GREEN : LIME);
     }
   }
 
@@ -414,8 +426,9 @@ void update_and_draw()
 
 int main(int argc, char *argv[])
 {
-  if (argc < 5) {
-    printf("Usage: %s <image> <objs FITS (axy)> <link FITS (corr)> <save/load path>\n", argv[0]);
+  if (argc < 6) {
+    printf("Usage: %s <image> <objs FITS (axy)> <catalogue FITS (rdls)> "
+      "<link FITS (corr)> <save/load path>\n", argv[0]);
     return 0;
   }
 
@@ -440,7 +453,11 @@ int main(int argc, char *argv[])
     printf("Error loading the objects table\n");
     return 1;
   }
-  if ((data_corr = read_fits_table(argv[3], col_names_corr, &nr_corr)) == NULL) {
+  if ((data_rdls = read_fits_table(argv[3], col_names_rdls, &nr_rdls)) == NULL) {
+    printf("Error loading the catalogue table\n");
+    return 1;
+  }
+  if ((data_corr = read_fits_table(argv[4], col_names_corr, &nr_corr)) == NULL) {
     printf("Error loading the correlation table\n");
     return 1;
   }
@@ -456,11 +473,14 @@ int main(int argc, char *argv[])
   for (long i = 0; i < nr_corr; i++) {
     if (corr_axyid(i) < AXY_LIMIT) axy_matched[corr_axyid(i)] = true;
   }
+  corr_id = (int *)malloc(sizeof(int) * nr_rdls);
+  memset(corr_id, -1, sizeof(int) * nr_rdls);
+  for (long i = 0; i < nr_corr; i++) corr_id[corr_catid(i)] = i;
 
   memset(refi_axy_match, -1, sizeof refi_axy_match);
   refi_cat_match = (int *)malloc(sizeof(int) * nr_corr);
   memset(refi_cat_match, -1, sizeof(int) * nr_corr);
-  save_load_path = argv[4];
+  save_load_path = argv[5];
   load();
 
   while (!WindowShouldClose()) {
