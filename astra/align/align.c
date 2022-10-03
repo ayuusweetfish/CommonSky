@@ -103,6 +103,7 @@ void update_and_draw()
     ((_x) < (_a) ? (_a) : (_x) > (_b) ? (_b) : (_x))
   if (IsKeyDown(KEY_EQUAL) || IsKeyDown(KEY_TWO)) sc += 0.02 * sc_base;
   if (IsKeyDown(KEY_MINUS) || IsKeyDown(KEY_ONE)) sc -= 0.02 * sc_base;
+  sc += 0.02 * GetMouseWheelMove();
   sc = clamp(sc, sc_base * 1, sc_base * 5);
   if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W)) offy -= 10;
   if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) offy += 10;
@@ -135,30 +136,7 @@ void update_and_draw()
     if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) ||
         IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
       initial_calculated = 0;
-    if (!rectsel &&
-        (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_LEFT_CONTROL)) &&
-        IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-      rectsel = true;
-      rectx = p.x;
-      recty = p.y;
-      rectremove = !IsKeyDown(KEY_LEFT_SHIFT);
-    } else if (rectsel) {
-      if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
-        rectsel = false;
-        for (long i = 0; i < nr_corr; i++) {
-          if (between(corr_x(i), rectx, p.x) &&
-              between(corr_y(i), recty, p.y)) {
-            if (rectremove) {
-              refi_clear_cat(i);
-            } else if (corr_axyid(i) < AXY_LIMIT &&
-                between(axy_x(corr_axyid(i)), rectx, p.x) &&
-                between(axy_y(corr_axyid(i)), recty, p.y)) {
-              refi_match(i, corr_axyid(i));
-            }
-          }
-        }
-      }
-    } else {
+    if (!rectsel) {
       #define dist_sq(_x, _y) \
         ((p.x - (_x)) * (p.x - (_x)) + (p.y - (_y)) * (p.y - (_y)))
       double dsq_best = 100;
@@ -186,6 +164,31 @@ void update_and_draw()
         }
       }
       #undef dist_sq
+    }
+    if (!rectsel &&
+        (sel_cat == -1 || IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_LEFT_CONTROL)) &&
+        IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      sel_cat = hover_cat = -1;
+      rectsel = true;
+      rectx = p.x;
+      recty = p.y;
+      rectremove = IsKeyDown(KEY_LEFT_CONTROL);
+    } else if (rectsel) {
+      if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
+        rectsel = false;
+        for (long i = 0; i < nr_corr; i++) {
+          if (between(corr_x(i), rectx, p.x) &&
+              between(corr_y(i), recty, p.y)) {
+            if (rectremove) {
+              refi_clear_cat(i);
+            } else if (corr_axyid(i) < AXY_LIMIT &&
+                between(axy_x(corr_axyid(i)), rectx, p.x) &&
+                between(axy_y(corr_axyid(i)), recty, p.y)) {
+              refi_match(i, corr_axyid(i));
+            }
+          }
+        }
+      }
     }
   }
 
