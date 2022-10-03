@@ -232,7 +232,7 @@ void update_and_draw()
       DrawRectangleLinesEx((Rectangle){
         rpos.x, rpos.y,
         rw * sc, rh * sc
-      }, 2, WHITE);
+      }, 2, rectremove ? BEIGE : WHITE);
     }
   }
 
