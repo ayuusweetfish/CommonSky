@@ -61,12 +61,12 @@ static inline void refi_clear_cat(int c)
     refi_cat_match[c] = -1;
   }
 }
-static inline void refi_match(int a, int c)
+static inline void refi_match(int c, int a)
 {
-  refi_clear_axy(a);
   refi_clear_cat(c);
-  refi_axy_match[a] = c;
+  refi_clear_axy(a);
   refi_cat_match[c] = a;
+  refi_axy_match[a] = c;
 }
 
 // Display and interactions
@@ -75,8 +75,8 @@ enum dispmode_e {
   DISP_REFINED,
   DISP_NUM,
 } dispmode;
-int sel_axy = -1;
-int hover_axy = -1, hover_cat = -1;
+int sel_cat = -1;
+int hover_cat = -1, hover_axy = -1;
 
 void update_and_draw()
 {
@@ -100,7 +100,7 @@ void update_and_draw()
   if (IsKeyPressed(KEY_SPACE)) {
     dispmode = (dispmode + 1) % DISP_NUM;
     if (dispmode == DISP_CALCULATED) {
-      sel_axy = hover_axy = hover_cat = -1;
+      sel_cat = hover_cat = hover_axy = -1;
     }
   }
 
@@ -111,24 +111,24 @@ void update_and_draw()
     #define dist_sq(_x, _y) \
       ((p.x - (_x)) * (p.x - (_x)) + (p.y - (_y)) * (p.y - (_y)))
     double dsq_best = 100;
-    if (sel_axy == -1) {
-      hover_axy = -1;
-      for (long i = 0; i < nr_axy && i < AXY_LIMIT; i++) {
-        double dsq = dist_sq(axy_x(i), axy_y(i));
-        if (dsq < dsq_best) { dsq_best = dsq; hover_axy = i; }
-      }
-      if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-        sel_axy = hover_axy;
-      }
-    } else {
+    if (sel_cat == -1) {
       hover_cat = -1;
       for (long i = 0; i < nr_corr; i++) {
         double dsq = dist_sq(corr_x(i), corr_y(i));
         if (dsq < dsq_best) { dsq_best = dsq; hover_cat = i; }
       }
       if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-        refi_match(sel_axy, hover_cat);
-        sel_axy = hover_axy = hover_cat = -1;
+        sel_cat = hover_cat;
+      }
+    } else {
+      hover_axy = -1;
+      for (long i = 0; i < nr_axy && i < AXY_LIMIT; i++) {
+        double dsq = dist_sq(axy_x(i), axy_y(i));
+        if (dsq < dsq_best) { dsq_best = dsq; hover_axy = i; }
+      }
+      if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        refi_match(sel_cat, hover_axy);
+        sel_cat = hover_cat = hover_axy = -1;
       }
     }
     #undef dist
@@ -164,13 +164,14 @@ void update_and_draw()
     for (long i = 0; i < nr_axy && i < AXY_LIMIT; i++) {
       DrawRing(scale(axy_x(i), axy_y(i)),
         4, 6, 0, 360, 12,
-        i == hover_axy || i == sel_axy ?
+        i == hover_axy ?
           WHITE : (refi_axy_match[i] != -1 ? ORANGE : RED));
     }
     for (long i = 0; i < nr_corr; i++) {
       DrawRing(scale(corr_x(i), corr_y(i)),
         2, 4, 0, 360, 12,
-        i == hover_cat ? WHITE : (refi_cat_match[i] != -1 ? GREEN : LIME));
+        i == hover_cat || i == sel_cat ?
+          WHITE : (refi_cat_match[i] != -1 ? GREEN : LIME));
       if (refi_cat_match[i] != -1)
         DrawLineEx(
           scale(corr_x(i), corr_y(i)),
