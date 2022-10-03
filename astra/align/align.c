@@ -78,8 +78,8 @@ static inline void refi_match(int c, int a)
 
 // Display and interactions
 enum dispmode_e {
-  DISP_CALCULATED = 0,
-  DISP_REFINED,
+  DISP_REFINED = 0,
+  DISP_APPLIED,
   DISP_NUM,
 } dispmode;
 int sel_cat = -1;
@@ -88,6 +88,11 @@ int hover_cat = -1, hover_axy = -1;
 bool rectsel = false;
 float rectx, recty;
 bool rectremove;
+
+// 2 - In the initial state, displaying calculated matches
+// 1 - Tab pressed
+// 0 - Out of the initial state
+char initial_calculated = 2;
 
 void update_and_draw()
 {
@@ -110,11 +115,16 @@ void update_and_draw()
   // Display mode switch
   if (IsKeyPressed(KEY_SPACE)) {
     dispmode = (dispmode + 1) % DISP_NUM;
-    if (dispmode == DISP_CALCULATED) {
+    if (dispmode != DISP_REFINED) {
       sel_cat = hover_cat = hover_axy = -1;
       rectsel = false;
     }
+    initial_calculated = 0;
   }
+  bool show_calculated = (dispmode == DISP_REFINED && IsKeyDown(KEY_TAB));
+  if (initial_calculated == 2 && show_calculated) initial_calculated = 1;
+  else if (initial_calculated == 1 && !show_calculated) initial_calculated = 0;
+  show_calculated |= initial_calculated;
 
   // Pointer position
   Vector2 p = GetMousePosition();
@@ -122,6 +132,9 @@ void update_and_draw()
 
   // Selection
   if (dispmode == DISP_REFINED) {
+    if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) ||
+        IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
+      initial_calculated = 0;
     if (!rectsel &&
         (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_LEFT_CONTROL)) &&
         IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
@@ -155,7 +168,7 @@ void update_and_draw()
           double dsq = dist_sq(corr_x(i), corr_y(i));
           if (dsq < dsq_best) { dsq_best = dsq; hover_cat = i; }
         }
-        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
           sel_cat = hover_cat;
         }
         if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
@@ -183,7 +196,7 @@ void update_and_draw()
   DrawTextureEx(itex, (Vector2){-offx * sc + scrw/2, -offy * sc + scrh/2}, 0, sc, WHITE);
 
   // solve-field.c: plot_index_overlay
-  if (dispmode == DISP_CALCULATED) {
+  if (show_calculated) {
     for (long i = 0; i < nr_corr; i++) {
       if (corr_axyid(i) >= AXY_LIMIT)
         DrawRing(
