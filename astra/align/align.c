@@ -7,6 +7,8 @@
 #include <stdbool.h>
 
 double *read_fits_table(const char *path, const char **colnames, long *count);
+void polyfit(int n, double *u, double *v, int ord, double *o_coeff);
+void polyapply(int n, double *u, double *o_v, int ord, double *coeff);
 
 // Image and scaling
 
@@ -121,6 +123,49 @@ void load()
     refi_cat_match[refi_axy_match[i]] = i;
 }
 
+// For fitting
+#define MAX_ORD 20
+double poly_coeff[(MAX_ORD + 1) * (MAX_ORD + 2)];
+double applied[AXY_LIMIT * 2];
+
+void fit()
+{
+  int ord = 4;
+
+  static double u[AXY_LIMIT * 2];
+  static double v[AXY_LIMIT * 2];
+  int n = 0;
+  for (long i = 0; i < nr_axy && i < AXY_LIMIT; i++) {
+    if (refi_axy_match[i] != -1) {
+      u[n * 2 + 0] = corr_ra(refi_axy_match[i]);
+      u[n * 2 + 1] = corr_dec(refi_axy_match[i]);
+      v[n * 2 + 0] = (axy_x(i) + 0.5) / iw;
+      v[n * 2 + 1] = (axy_y(i) + 0.5) / ih;
+      n++;
+    }
+  }
+  polyfit(n, u, v, ord, poly_coeff);
+
+  static double vo[AXY_LIMIT * 2];
+  polyapply(n, u, vo, ord, poly_coeff);
+/*
+  for (int i = 0; i < n; i++) {
+    printf("%.4lf %.4lf\n", u[i * 2 + 0], u[i * 2 + 1]);
+    printf("%.4lf %.4lf\n", v[i * 2 + 0], v[i * 2 + 1]);
+    printf("%.4lf %.4lf\n", vo[i * 2 + 0], vo[i * 2 + 1]);
+    printf("----\n");
+  }
+*/
+
+  for (long i = 0, nn = 0; i < nr_axy && i < AXY_LIMIT; i++) {
+    if (refi_axy_match[i] != -1) {
+      applied[i * 2 + 0] = vo[nn * 2 + 0];
+      applied[i * 2 + 1] = vo[nn * 2 + 1];
+      nn++;
+    }
+  }
+}
+
 void update_and_draw()
 {
   // Update
@@ -146,6 +191,9 @@ void update_and_draw()
     if (dispmode != DISP_REFINED) {
       sel_cat = hover_cat = hover_axy = -1;
       rectsel = false;
+    }
+    if (dispmode == DISP_APPLIED) {
+      fit();
     }
     initial_calculated = 0;
   }
@@ -281,6 +329,15 @@ void update_and_draw()
         rpos.x, rpos.y,
         rw * sc, rh * sc
       }, 2, rectremove ? BEIGE : WHITE);
+    }
+  } else if (dispmode == DISP_APPLIED) {
+    for (long i = 0; i < nr_axy && i < AXY_LIMIT; i++) {
+      if (refi_axy_match[i] != -1) {
+        DrawRing(scale(axy_x(i), axy_y(i)),
+          4, 6, 0, 360, 12, ORANGE);
+        DrawRing(scale(applied[i * 2 + 0] * iw, applied[i * 2 + 1] * ih),
+          2, 4, 0, 360, 12, GREEN);
+      }
     }
   }
 

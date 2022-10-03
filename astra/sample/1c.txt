@@ -1,0 +1,2 @@
+solve-field --scale-low 10 --tweak-order 3 --crpix-center 1c.png
+(with patched astrometry.net)
