@@ -70,14 +70,18 @@ void polyfit(int n, double *u, double *v, int ord, double *o_coeff)
     for (int xp1 = 0; xp1 <= ord; xp1++)
     for (int yp1 = 0; yp1 <= ord - xp1; yp1++) {
       C(c, xp1, yp1) = LLS_sol[id(xp1, yp1)][c];
-      // printf("%d %d %d %.4lf\n", c, xp1, yp1, C(c, xp1, yp1));
     }
   }
+
+  free(XTX);
+  free(uxpow);
+  free(uypow);
+  free(XTY);
 }
 
 #undef COEFF
 #define COEFF coeff
-void polyapply(int n, double *u, double *o_v, int ord, double *coeff)
+void polyapply(int n, double *u, int ord, double *coeff)
 {
   double uxpow[ord + 1], uypow[ord + 1];
   uxpow[0] = uypow[0] = 1;
@@ -93,7 +97,7 @@ void polyapply(int n, double *u, double *o_v, int ord, double *coeff)
         for (int j = 0; j <= ord - i; j++) {
           sum += uxpow[i] * uypow[j] * C(c, i, j);
         }
-      o_v[k * 2 + c] = sum;
+      u[k * 2 + c] = sum;
     }
   }
 }

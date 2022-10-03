@@ -8,7 +8,7 @@
 
 double *read_fits_table(const char *path, const char **colnames, long *count);
 void polyfit(int n, double *u, double *v, int ord, double *o_coeff);
-void polyapply(int n, double *u, double *o_v, int ord, double *coeff);
+void polyapply(int n, double *u, int ord, double *coeff);
 
 // Image and scaling
 
@@ -126,11 +126,18 @@ void load()
 // For fitting
 #define MAX_ORD 20
 double poly_coeff[(MAX_ORD + 1) * (MAX_ORD + 2)];
-double applied[AXY_LIMIT * 2];
+double *applied = NULL;
+
+int grid_ra_min, grid_ra_max;
+int grid_dec_min, grid_dec_max;
+const int GRID_SUBDIV = 25;
+double grid_ra_ngroups, grid_dec_ngroups;
+double *grid_ra_applied = NULL;
+double *grid_dec_applied = NULL;
 
 void fit()
 {
-  int ord = 6;
+  int ord = 4;
 
   static double u[AXY_LIMIT * 2];
   static double v[AXY_LIMIT * 2];
@@ -146,24 +153,55 @@ void fit()
   }
   polyfit(n, u, v, ord, poly_coeff);
 
-  static double vo[AXY_LIMIT * 2];
-  polyapply(n, u, vo, ord, poly_coeff);
-/*
-  for (int i = 0; i < n; i++) {
-    printf("%.4lf %.4lf\n", u[i * 2 + 0], u[i * 2 + 1]);
-    printf("%.4lf %.4lf\n", v[i * 2 + 0], v[i * 2 + 1]);
-    printf("%.4lf %.4lf\n", vo[i * 2 + 0], vo[i * 2 + 1]);
-    printf("----\n");
+  if (applied == NULL) {
+    applied = (double *)malloc(sizeof(double) * nr_corr * 2);
+    float ra_min, ra_max;
+    float dec_min, dec_max;
+    ra_min = dec_min = 9999;
+    ra_max = dec_max = -9999;
+    for (long i = 0; i < nr_corr; i++) {
+      if (corr_ra(i) < ra_min) ra_min = corr_ra(i);
+      if (corr_ra(i) > ra_max) ra_max = corr_ra(i);
+      if (corr_dec(i) < dec_min) dec_min = corr_dec(i);
+      if (corr_dec(i) > dec_max) dec_max = corr_dec(i);
+    }
+    // Value range guarantees precise arithmetic
+    grid_ra_min = floor(ra_min / 10) * 10;
+    grid_ra_max = ceil(ra_max / 10) * 10;
+    grid_dec_min = floor(dec_min / 10) * 10;
+    grid_dec_max = ceil(dec_max / 10) * 10;
+    // printf("%.4lf %.4lf\n", grid_ra_min, grid_ra_max);
+    // printf("%.4lf %.4lf\n", grid_dec_min, grid_dec_max);
+    grid_ra_ngroups = (grid_ra_max - grid_ra_min) / 10 + 1;
+    grid_dec_ngroups = (grid_dec_max - grid_dec_min) / 10 + 1;
+    grid_ra_applied = (double *)malloc(
+      sizeof(double) * grid_ra_ngroups * GRID_SUBDIV * 2);
+    grid_dec_applied = (double *)malloc(
+      sizeof(double) * grid_dec_ngroups * GRID_SUBDIV * 2);
   }
-*/
 
-  for (long i = 0, nn = 0; i < nr_axy && i < AXY_LIMIT; i++) {
-    if (refi_axy_match[i] != -1) {
-      applied[i * 2 + 0] = vo[nn * 2 + 0];
-      applied[i * 2 + 1] = vo[nn * 2 + 1];
-      nn++;
+  for (long i = 0; i < nr_corr; i++) {
+    applied[i * 2 + 0] = corr_ra(i);
+    applied[i * 2 + 1] = corr_dec(i);
+  }
+  polyapply(nr_corr, applied, ord, poly_coeff);
+
+  for (int i = 0; i < grid_ra_ngroups; i++) {
+    for (int j = 0; j < GRID_SUBDIV; j++) {
+      grid_ra_applied[(i * GRID_SUBDIV + j) * 2 + 0] = grid_ra_min + 10 * i;
+      grid_ra_applied[(i * GRID_SUBDIV + j) * 2 + 1] = grid_dec_min +
+        (grid_dec_max - grid_dec_min) * ((double)j / (GRID_SUBDIV - 1));
     }
   }
+  polyapply(grid_ra_ngroups * GRID_SUBDIV, grid_ra_applied, ord, poly_coeff);
+  for (int i = 0; i < grid_dec_ngroups; i++) {
+    for (int j = 0; j < GRID_SUBDIV; j++) {
+      grid_dec_applied[(i * GRID_SUBDIV + j) * 2 + 0] = grid_ra_min +
+        (grid_ra_max - grid_ra_min) * ((double)j / (GRID_SUBDIV - 1));
+      grid_dec_applied[(i * GRID_SUBDIV + j) * 2 + 1] = grid_dec_min + 10 *i;
+    }
+  }
+  polyapply(grid_dec_ngroups * GRID_SUBDIV, grid_dec_applied, ord, poly_coeff);
 }
 
 void update_and_draw()
@@ -331,13 +369,42 @@ void update_and_draw()
       }, 2, rectremove ? BEIGE : WHITE);
     }
   } else if (dispmode == DISP_APPLIED) {
+    // Grid
+    for (int i = 0; i < grid_ra_ngroups; i++) {
+      for (int j = 1; j < GRID_SUBDIV; j++)
+        DrawLineEx(scale(
+          grid_ra_applied[(i * GRID_SUBDIV + (j - 0)) * 2 + 0] * iw,
+          grid_ra_applied[(i * GRID_SUBDIV + (j - 0)) * 2 + 1] * ih
+        ), scale(
+          grid_ra_applied[(i * GRID_SUBDIV + (j - 1)) * 2 + 0] * iw,
+          grid_ra_applied[(i * GRID_SUBDIV + (j - 1)) * 2 + 1] * ih
+        ), 2, Fade(GRAY, 0.5));
+    }
+    for (int i = 0; i < grid_dec_ngroups; i++) {
+      for (int j = 1; j < GRID_SUBDIV; j++)
+        DrawLineEx(scale(
+          grid_dec_applied[(i * GRID_SUBDIV + (j - 0)) * 2 + 0] * iw,
+          grid_dec_applied[(i * GRID_SUBDIV + (j - 0)) * 2 + 1] * ih
+        ), scale(
+          grid_dec_applied[(i * GRID_SUBDIV + (j - 1)) * 2 + 0] * iw,
+          grid_dec_applied[(i * GRID_SUBDIV + (j - 1)) * 2 + 1] * ih
+        ), 2, Fade(GRAY, 0.5));
+    }
+    // Image objects
     for (long i = 0; i < nr_axy && i < AXY_LIMIT; i++) {
-      if (refi_axy_match[i] != -1) {
-        DrawRing(scale(axy_x(i), axy_y(i)),
-          4, 6, 0, 360, 12, ORANGE);
-        DrawRing(scale(applied[i * 2 + 0] * iw, applied[i * 2 + 1] * ih),
-          2, 4, 0, 360, 12, GREEN);
-      }
+      DrawRing(scale(axy_x(i), axy_y(i)),
+        4, 6, 0, 360, 12, refi_axy_match[i] != -1 ? ORANGE : RED);
+      if (refi_axy_match[i] != -1)
+        DrawLineEx(
+          scale(axy_x(i), axy_y(i)),
+          scale(applied[refi_axy_match[i] * 2 + 0] * iw,
+                applied[refi_axy_match[i] * 2 + 1] * ih),
+          2, GREEN);
+    }
+    // Catalogue objects
+    for (long i = 0; i < nr_corr; i++) {
+      DrawRing(scale(applied[i * 2 + 0] * iw, applied[i * 2 + 1] * ih),
+        2, 4, 0, 360, 12, refi_cat_match[i] != -1 ? GREEN : LIME);
     }
   }
 
