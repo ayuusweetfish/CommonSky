@@ -87,6 +87,7 @@ int hover_cat = -1, hover_axy = -1;
 
 bool rectsel = false;
 float rectx, recty;
+bool rectremove;
 
 void update_and_draw()
 {
@@ -121,20 +122,26 @@ void update_and_draw()
 
   // Selection
   if (dispmode == DISP_REFINED) {
-    if (!rectsel && IsKeyDown(KEY_LEFT_SHIFT) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    if (!rectsel &&
+        (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_LEFT_CONTROL)) &&
+        IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
       rectsel = true;
       rectx = p.x;
       recty = p.y;
+      rectremove = !IsKeyDown(KEY_LEFT_SHIFT);
     } else if (rectsel) {
       if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
         rectsel = false;
         for (long i = 0; i < nr_corr; i++) {
-          if (corr_axyid(i) < AXY_LIMIT &&
-              between(corr_x(i), rectx, p.x) &&
-              between(corr_y(i), recty, p.y) &&
-              between(axy_x(corr_axyid(i)), rectx, p.x) &&
-              between(axy_y(corr_axyid(i)), recty, p.y)) {
-            refi_match(i, corr_axyid(i));
+          if (between(corr_x(i), rectx, p.x) &&
+              between(corr_y(i), recty, p.y)) {
+            if (rectremove) {
+              refi_clear_cat(i);
+            } else if (corr_axyid(i) < AXY_LIMIT &&
+                between(axy_x(corr_axyid(i)), rectx, p.x) &&
+                between(axy_y(corr_axyid(i)), recty, p.y)) {
+              refi_match(i, corr_axyid(i));
+            }
           }
         }
       }
