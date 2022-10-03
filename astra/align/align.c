@@ -120,7 +120,8 @@ void load()
   }
   fclose(fp);
   for (long i = 0; i < nr_axy && i < AXY_LIMIT; i++)
-    refi_cat_match[refi_axy_match[i]] = i;
+    if (refi_axy_match[i] != -1)
+      refi_cat_match[refi_axy_match[i]] = i;
 }
 
 // For fitting
