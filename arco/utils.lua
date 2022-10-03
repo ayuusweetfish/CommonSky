@@ -87,7 +87,7 @@ end
 
 -- Load saved annotations
 -- On new images, run:
--- find . -name "*.jpg" -exec basename {} \; >> annot.txt
+-- find . \( -name "*.jpg" -o -name "*.jpeg" -o -name "*.png" \) -exec basename {} \; >> annot.txt
 -- Returns annot, annotlist
 local loadannots = function (path)
   local annot = {}
