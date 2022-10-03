@@ -1,5 +1,6 @@
 #include "raylib.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -20,6 +21,12 @@ float offx, offy;
 #define scale(_x, _y) (Vector2){((_x) - offx) * sc, ((_y) - offy) * sc}
 // Screen space -> image
 #define iscale(_x, _y) (Vector2){(_x) / sc + offx, (_y) / sc + offy}
+
+// Utility functions
+static inline bool between(float x, float a, float b)
+{
+  return x == a || x == b || ((x < a) ^ (x < b));
+}
 
 // FITS tables
 
@@ -78,6 +85,9 @@ enum dispmode_e {
 int sel_cat = -1;
 int hover_cat = -1, hover_axy = -1;
 
+bool rectsel = false;
+float rectx, recty;
+
 void update_and_draw()
 {
   // Update
@@ -101,40 +111,62 @@ void update_and_draw()
     dispmode = (dispmode + 1) % DISP_NUM;
     if (dispmode == DISP_CALCULATED) {
       sel_cat = hover_cat = hover_axy = -1;
+      rectsel = false;
     }
   }
 
+  // Pointer position
+  Vector2 p = GetMousePosition();
+  p = iscale(p.x, p.y);
+
   // Selection
   if (dispmode == DISP_REFINED) {
-    Vector2 p = GetMousePosition();
-    p = iscale(p.x, p.y);
-    #define dist_sq(_x, _y) \
-      ((p.x - (_x)) * (p.x - (_x)) + (p.y - (_y)) * (p.y - (_y)))
-    double dsq_best = 100;
-    if (sel_cat == -1) {
-      hover_cat = -1;
-      for (long i = 0; i < nr_corr; i++) {
-        double dsq = dist_sq(corr_x(i), corr_y(i));
-        if (dsq < dsq_best) { dsq_best = dsq; hover_cat = i; }
-      }
-      if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-        sel_cat = hover_cat;
-      }
-      if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
-        refi_clear_cat(hover_cat);
+    if (!rectsel && IsKeyDown(KEY_LEFT_SHIFT) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      rectsel = true;
+      rectx = p.x;
+      recty = p.y;
+    } else if (rectsel) {
+      if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
+        rectsel = false;
+        for (long i = 0; i < nr_corr; i++) {
+          if (corr_axyid(i) < AXY_LIMIT &&
+              between(corr_x(i), rectx, p.x) &&
+              between(corr_y(i), recty, p.y) &&
+              between(axy_x(corr_axyid(i)), rectx, p.x) &&
+              between(axy_y(corr_axyid(i)), recty, p.y)) {
+            refi_match(i, corr_axyid(i));
+          }
+        }
       }
     } else {
-      hover_axy = -1;
-      for (long i = 0; i < nr_axy && i < AXY_LIMIT; i++) {
-        double dsq = dist_sq(axy_x(i), axy_y(i));
-        if (dsq < dsq_best) { dsq_best = dsq; hover_axy = i; }
+      #define dist_sq(_x, _y) \
+        ((p.x - (_x)) * (p.x - (_x)) + (p.y - (_y)) * (p.y - (_y)))
+      double dsq_best = 100;
+      if (sel_cat == -1) {
+        hover_cat = -1;
+        for (long i = 0; i < nr_corr; i++) {
+          double dsq = dist_sq(corr_x(i), corr_y(i));
+          if (dsq < dsq_best) { dsq_best = dsq; hover_cat = i; }
+        }
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+          sel_cat = hover_cat;
+        }
+        if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
+          refi_clear_cat(hover_cat);
+        }
+      } else {
+        hover_axy = -1;
+        for (long i = 0; i < nr_axy && i < AXY_LIMIT; i++) {
+          double dsq = dist_sq(axy_x(i), axy_y(i));
+          if (dsq < dsq_best) { dsq_best = dsq; hover_axy = i; }
+        }
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+          if (hover_axy != -1) refi_match(sel_cat, hover_axy);
+          sel_cat = hover_cat = hover_axy = -1;
+        }
       }
-      if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-        if (hover_axy != -1) refi_match(sel_cat, hover_axy);
-        sel_cat = hover_cat = hover_axy = -1;
-      }
+      #undef dist_sq
     }
-    #undef dist
   }
 
   // Draw
@@ -180,6 +212,15 @@ void update_and_draw()
           scale(corr_x(i), corr_y(i)),
           scale(axy_x(refi_cat_match[i]), axy_y(refi_cat_match[i])),
           2, GREEN);
+    }
+    if (rectsel) {
+      float rw = fabsf(rectx - p.x);
+      float rh = fabsf(recty - p.y);
+      Vector2 rpos = scale((rectx + p.x - rw) / 2, (recty + p.y - rh) / 2);
+      DrawRectangleLinesEx((Rectangle){
+        rpos.x, rpos.y,
+        rw * sc, rh * sc
+      }, 2, WHITE);
     }
   }
 
