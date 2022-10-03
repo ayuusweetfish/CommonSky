@@ -18,9 +18,9 @@ int scrw, scrh;
 float sc, sc_base;
 float offx, offy;
 // Image space -> screen
-#define scale(_x, _y) (Vector2){((_x) - offx) * sc, ((_y) - offy) * sc}
+#define scale(_x, _y) (Vector2){((_x) - offx) * sc + scrw/2, ((_y) - offy) * sc + scrh/2}
 // Screen space -> image
-#define iscale(_x, _y) (Vector2){(_x) / sc + offx, (_y) / sc + offy}
+#define iscale(_x, _y) (Vector2){((_x) - scrw/2) / sc + offx, ((_y) - scrh/2) / sc + offy}
 
 // Utility functions
 static inline bool between(float x, float a, float b)
@@ -101,10 +101,10 @@ void update_and_draw()
   sc = clamp(sc, sc_base * 1, sc_base * 5);
   if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W)) offy -= 10;
   if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) offy += 10;
-  offy = clamp(offy, 0, ih - scrh / sc);
+  offy = clamp(offy, scrh / sc / 2, ih - scrh / sc / 2);
   if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)) offx -= 10;
   if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) offx += 10;
-  offx = clamp(offx, 0, iw - scrw / sc);
+  offx = clamp(offx, scrw / sc / 2, iw - scrw / sc / 2);
   #undef clamp
 
   // Display mode switch
@@ -180,7 +180,7 @@ void update_and_draw()
 
   BeginDrawing();
 
-  DrawTextureEx(itex, (Vector2){-offx * sc, -offy * sc}, 0, sc, WHITE);
+  DrawTextureEx(itex, (Vector2){-offx * sc + scrw/2, -offy * sc + scrh/2}, 0, sc, WHITE);
 
   // solve-field.c: plot_index_overlay
   if (dispmode == DISP_CALCULATED) {
