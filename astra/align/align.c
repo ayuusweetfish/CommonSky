@@ -94,6 +94,33 @@ bool rectremove;
 // 0 - Out of the initial state
 char initial_calculated = 2;
 
+const char *save_load_path = NULL;
+void save()
+{
+  FILE *fp = fopen(save_load_path, "w");
+  if (fp == NULL) {
+    printf("Cannot save to %s\n", save_load_path);
+    exit(1);
+  }
+  for (long i = 0; i < nr_axy && i < AXY_LIMIT; i++)
+    fprintf(fp, "%d ", refi_axy_match[i]);
+  fclose(fp);
+}
+void load()
+{
+  FILE *fp = fopen(save_load_path, "r");
+  if (fp == NULL) return;
+  for (long i = 0; i < nr_axy && i < AXY_LIMIT; i++)
+    fscanf(fp, "%d", &refi_axy_match[i]);
+  if (ferror(fp)) {
+    printf("Cannot load from %s\n", save_load_path);
+    exit(1);
+  }
+  fclose(fp);
+  for (long i = 0; i < nr_axy && i < AXY_LIMIT; i++)
+    refi_cat_match[refi_axy_match[i]] = i;
+}
+
 void update_and_draw()
 {
   // Update
@@ -151,6 +178,7 @@ void update_and_draw()
         }
         if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
           refi_clear_cat(hover_cat);
+          save();
         }
       } else {
         hover_axy = -1;
@@ -159,7 +187,10 @@ void update_and_draw()
           if (dsq < dsq_best) { dsq_best = dsq; hover_axy = i; }
         }
         if (IsMouseButtonUp(MOUSE_BUTTON_LEFT)) {
-          if (hover_axy != -1) refi_match(sel_cat, hover_axy);
+          if (hover_axy != -1) {
+            refi_match(sel_cat, hover_axy);
+            save();
+          }
           sel_cat = hover_cat = hover_axy = -1;
         }
       }
@@ -188,6 +219,7 @@ void update_and_draw()
             }
           }
         }
+        save();
       }
     }
   }
@@ -257,8 +289,8 @@ void update_and_draw()
 
 int main(int argc, char *argv[])
 {
-  if (argc < 4) {
-    printf("Usage: %s <image> <objs FITS (axy)> <link FITS (corr)>\n", argv[0]);
+  if (argc < 5) {
+    printf("Usage: %s <image> <objs FITS (axy)> <link FITS (corr)> <save/load path>\n", argv[0]);
     return 0;
   }
 
@@ -303,6 +335,8 @@ int main(int argc, char *argv[])
   memset(refi_axy_match, -1, sizeof refi_axy_match);
   refi_cat_match = (int *)malloc(sizeof(int) * nr_corr);
   memset(refi_cat_match, -1, sizeof(int) * nr_corr);
+  save_load_path = argv[4];
+  load();
 
   while (!WindowShouldClose()) {
     update_and_draw();
