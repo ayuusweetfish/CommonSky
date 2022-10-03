@@ -155,7 +155,7 @@ void update_and_draw()
           double dsq = dist_sq(corr_x(i), corr_y(i));
           if (dsq < dsq_best) { dsq_best = dsq; hover_cat = i; }
         }
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
           sel_cat = hover_cat;
         }
         if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
@@ -167,7 +167,7 @@ void update_and_draw()
           double dsq = dist_sq(axy_x(i), axy_y(i));
           if (dsq < dsq_best) { dsq_best = dsq; hover_axy = i; }
         }
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        if (IsMouseButtonUp(MOUSE_BUTTON_LEFT)) {
           if (hover_axy != -1) refi_match(sel_cat, hover_axy);
           sel_cat = hover_cat = hover_axy = -1;
         }
@@ -218,6 +218,11 @@ void update_and_draw()
         DrawLineEx(
           scale(corr_x(i), corr_y(i)),
           scale(axy_x(refi_cat_match[i]), axy_y(refi_cat_match[i])),
+          2, GREEN);
+      if (i == sel_cat)
+        DrawLineEx(
+          scale(corr_x(i), corr_y(i)),
+          scale(p.x, p.y),
           2, GREEN);
     }
     if (rectsel) {
