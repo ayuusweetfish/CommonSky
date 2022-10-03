@@ -130,7 +130,7 @@ double applied[AXY_LIMIT * 2];
 
 void fit()
 {
-  int ord = 4;
+  int ord = 6;
 
   static double u[AXY_LIMIT * 2];
   static double v[AXY_LIMIT * 2];

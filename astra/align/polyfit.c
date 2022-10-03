@@ -1,6 +1,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 // C (n*m) = A^-1 (n*n) B (n*m)
 static void invert_mul(int n, int m, double *a, double *b, double *c);
@@ -11,39 +12,66 @@ static void invert_mul(int n, int m, double *a, double *b, double *c);
 //  sum_{i,j>=0, i+j<=ord} C[c,i,j] ux^i uy^j
 // C[c,i,j] = o_coeff[c * (ord+1)*(ord+2)/2 + (i*(ord+1) + j - i*(i-1)/2)]
 
+#define id(_i, _j) ((_i)*(ord+1) + (_j) - (_i)*((_i)-1)/2)
 #define C(_c, _i, _j) \
-  COEFF[(_c) * (ord+1)*(ord+2)/2 + ((_i)*(ord+1) + (_j) - (_i)*((_i)-1)/2)]
+  COEFF[(_c) * (ord+1)*(ord+2)/2 + id((_i), (_j))]
 
 #define COEFF o_coeff
 void polyfit(int n, double *u, double *v, int ord, double *o_coeff)
 {
+  int n_coeffs = (ord + 1) * (ord + 2) / 2;
   // Initial guess: LLS
   // XB = Y
-  // X: n * 3 (u)
+  // X: n * n_coeffs (u)
   // Y: n * 2 (v)
-  // B: 3 * 2 
+  // B: n_coeffs * 2 
   // B = inv(X^T X) * X^T * Y
-  double XTX[3][3] = {{ 0 }};
-  for (int i = 0; i < n; i++)
-    for (int j = 0; j < 3; j++)
-      for (int k = 0; k < 3; k++)
-        XTX[j][k] +=
-          (j == 2 ? 1 : u[i * 2 + j]) *
-          (k == 2 ? 1 : u[i * 2 + k]);
+  double *XTX = (double *)malloc(sizeof(double) * n_coeffs * n_coeffs);
+  double *uxpow = (double *)malloc(sizeof(double) * (ord + 1));
+  double *uypow = (double *)malloc(sizeof(double) * (ord + 1));
+  memset(XTX, 0, sizeof(double) * n_coeffs * n_coeffs);
+  uxpow[0] = uypow[0] = 1;
+  for (int i = 0; i < n; i++) {
+    for (int j = 1; j <= ord; j++) {
+      uxpow[j] = uxpow[j - 1] * u[i * 2 + 0];
+      uypow[j] = uypow[j - 1] * u[i * 2 + 1];
+    }
+    for (int xp1 = 0; xp1 <= ord; xp1++)
+    for (int yp1 = 0; yp1 <= ord - xp1; yp1++) {
+      double val1 = uxpow[xp1] * uypow[yp1];
+      for (int xp2 = 0; xp2 <= ord; xp2++)
+      for (int yp2 = 0; yp2 <= ord - xp2; yp2++) {
+        double val2 = uxpow[xp2] * uypow[yp2];
+        XTX[id(xp1, yp1) * n_coeffs + id(xp2, yp2)]
+          += val1 * val2;
+      }
+    }
+  }
   // X^T * Y
-  double XTY[3][2] = {{ 0 }};
-  for (int i = 0; i < n; i++)
-    for (int j = 0; j < 3; j++)
+  double *XTY = (double *)malloc(sizeof(double) * n_coeffs * 2);
+  memset(XTY, 0, sizeof(double) * n_coeffs * 2);
+  for (int i = 0; i < n; i++) {
+    for (int j = 1; j <= ord; j++) {
+      uxpow[j] = uxpow[j - 1] * u[i * 2 + 0];
+      uypow[j] = uypow[j - 1] * u[i * 2 + 1];
+    }
+    for (int xp1 = 0; xp1 <= ord; xp1++)
+    for (int yp1 = 0; yp1 <= ord - xp1; yp1++) {
+      int j = id(xp1, yp1);
       for (int k = 0; k < 2; k++)
-        XTY[j][k] += (j == 2 ? 1 : u[i * 2 + j]) * v[i * 2 + k];
+        XTY[j * 2 + k] += uxpow[xp1] * uypow[yp1] * v[i * 2 + k];
+    }
+  }
   // Invert and multiply
-  double LLS_sol[3][2];
-  invert_mul(3, 2, &XTX[0][0], &XTY[0][0], &LLS_sol[0][0]);
+  double LLS_sol[n_coeffs][2];
+  invert_mul(n_coeffs, 2, &XTX[0], &XTY[0], &LLS_sol[0][0]);
   // Copy to coefficients as a starting point
   for (int c = 0; c < 2; c++) {
-    C(c, 0, 0) = LLS_sol[2][c];
-    C(c, 1, 0) = LLS_sol[0][c];
-    C(c, 0, 1) = LLS_sol[1][c];
+    for (int xp1 = 0; xp1 <= ord; xp1++)
+    for (int yp1 = 0; yp1 <= ord - xp1; yp1++) {
+      C(c, xp1, yp1) = LLS_sol[id(xp1, yp1)][c];
+      // printf("%d %d %d %.4lf\n", c, xp1, yp1, C(c, xp1, yp1));
+    }
   }
 }
 
