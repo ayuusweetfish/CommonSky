@@ -11,7 +11,6 @@ static inline void stereo_proj(
   double ra, double dec,
   double *o_x, double *o_y)
 {
-  printf("%.4f %.4f %.4f %.4f -- ", view_ra, view_dec, ra, dec);
   ra *= (M_PI / 180);
   dec *= (M_PI / 180);
   double x = cos(dec) * cos(ra);
@@ -33,7 +32,6 @@ static inline void stereo_proj(
   // Stereographic projection
   *o_x = x / (1 - z);
   *o_y = y / (1 - z);
-  printf("%.4f %.4f %.4f -- %.4f %.4f\n", x, y, z, *o_x, *o_y);
 }
 
 // For 0<=k<n, 0<=c<=1:
