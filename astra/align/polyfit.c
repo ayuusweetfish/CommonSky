@@ -6,6 +6,36 @@
 // C (n*m) = A^-1 (n*n) B (n*m)
 static void invert_mul(int n, int m, double *a, double *b, double *c);
 
+static inline void stereo_proj(
+  double view_ra, double view_dec,
+  double ra, double dec,
+  double *o_x, double *o_y)
+{
+  printf("%.4f %.4f %.4f %.4f -- ", view_ra, view_dec, ra, dec);
+  ra *= (M_PI / 180);
+  dec *= (M_PI / 180);
+  double x = cos(dec) * cos(ra);
+  double y = cos(dec) * sin(ra);
+  double z = sin(dec);
+  // Move target to (0, 0, -1)
+  // by rotating around Z axis first (to RA=0), and then X axis (to Dec=-90deg)
+  double rot_ra = -view_ra * (M_PI / 180);
+  double rot_dec = (-90 - view_dec) * (M_PI / 180);
+  double x0, y0, z0;
+  // Around Z
+  x0 = x; y0 = y;
+  x = x0 * cos(rot_ra) - y0 * sin(rot_ra);
+  y = x0 * sin(rot_ra) + y0 * cos(rot_ra);
+  // Around X
+  y0 = y; z0 = z;
+  y = y0 * cos(rot_dec) - z0 * sin(rot_dec);
+  z = y0 * sin(rot_dec) + z0 * cos(rot_dec);
+  // Stereographic projection
+  *o_x = x / (1 - z);
+  *o_y = y / (1 - z);
+  printf("%.4f %.4f %.4f -- %.4f %.4f\n", x, y, z, *o_x, *o_y);
+}
+
 // For 0<=k<n, 0<=c<=1:
 // v[2k+c] =
 //  let ux = u[2k+0], uy = u[2k+1]
@@ -17,7 +47,7 @@ static void invert_mul(int n, int m, double *a, double *b, double *c);
   COEFF[(_c) * (ord+1)*(ord+2)/2 + id((_i), (_j))]
 
 #define COEFF o_coeff
-void polyfit(int n, double *u, double *v, int ord, double *o_coeff)
+void polyfit(int n, double *u, double *v, double view_ra, double view_dec, int ord, double *o_coeff)
 {
   int n_coeffs = (ord + 1) * (ord + 2) / 2;
   // Initial guess: LLS
@@ -32,9 +62,11 @@ void polyfit(int n, double *u, double *v, int ord, double *o_coeff)
   memset(XTX, 0, sizeof(double) * n_coeffs * n_coeffs);
   uxpow[0] = uypow[0] = 1;
   for (int i = 0; i < n; i++) {
+    double x, y;
+    stereo_proj(view_ra, view_dec, u[i * 2 + 0], u[i * 2 + 1], &x, &y);
     for (int j = 1; j <= ord; j++) {
-      uxpow[j] = uxpow[j - 1] * u[i * 2 + 0];
-      uypow[j] = uypow[j - 1] * u[i * 2 + 1];
+      uxpow[j] = uxpow[j - 1] * x;
+      uypow[j] = uypow[j - 1] * y;
     }
     for (int xp1 = 0; xp1 <= ord; xp1++)
     for (int yp1 = 0; yp1 <= ord - xp1; yp1++) {
@@ -51,9 +83,11 @@ void polyfit(int n, double *u, double *v, int ord, double *o_coeff)
   double *XTY = (double *)malloc(sizeof(double) * n_coeffs * 2);
   memset(XTY, 0, sizeof(double) * n_coeffs * 2);
   for (int i = 0; i < n; i++) {
+    double x, y;
+    stereo_proj(view_ra, view_dec, u[i * 2 + 0], u[i * 2 + 1], &x, &y);
     for (int j = 1; j <= ord; j++) {
-      uxpow[j] = uxpow[j - 1] * u[i * 2 + 0];
-      uypow[j] = uypow[j - 1] * u[i * 2 + 1];
+      uxpow[j] = uxpow[j - 1] * x;
+      uypow[j] = uypow[j - 1] * y;
     }
     for (int xp1 = 0; xp1 <= ord; xp1++)
     for (int yp1 = 0; yp1 <= ord - xp1; yp1++) {
@@ -81,15 +115,16 @@ void polyfit(int n, double *u, double *v, int ord, double *o_coeff)
 
 #undef COEFF
 #define COEFF coeff
-void polyapply(int n, double *u, int ord, double *coeff)
+void polyapply(int n, double *u, double view_ra, double view_dec, int ord, double *coeff)
 {
   double uxpow[ord + 1], uypow[ord + 1];
   uxpow[0] = uypow[0] = 1;
   for (int k = 0; k < n; k++) {
-    double ux = u[k * 2 + 0], uy = u[k * 2 + 1];
+    double x, y;
+    stereo_proj(view_ra, view_dec, u[k * 2 + 0], u[k * 2 + 1], &x, &y);
     for (int i = 1; i <= ord; i++) {
-      uxpow[i] = uxpow[i - 1] * ux;
-      uypow[i] = uypow[i - 1] * uy;
+      uxpow[i] = uxpow[i - 1] * x;
+      uypow[i] = uypow[i - 1] * y;
     }
     for (int c = 0; c <= 1; c++) {
       double sum = 0;

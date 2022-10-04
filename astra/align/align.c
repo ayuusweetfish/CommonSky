@@ -7,8 +7,8 @@
 #include <stdbool.h>
 
 double *read_fits_table(const char *path, const char **colnames, long *count);
-void polyfit(int n, double *u, double *v, int ord, double *o_coeff);
-void polyapply(int n, double *u, int ord, double *coeff);
+void polyfit(int n, double *u, double *v, double view_ra, double view_dec, int ord, double *o_coeff);
+void polyapply(int n, double *u, double view_ra, double view_dec, int ord, double *coeff);
 
 // Image and scaling
 
@@ -55,6 +55,8 @@ double *data_corr;
 #define corr_dec(_i)    data_corr[(_i) * 6 + 5]
 
 // Auxiliary data
+
+double view_ra, view_dec;
 
 const int AXY_LIMIT = 200;
 bool axy_matched[AXY_LIMIT] = { false };
@@ -163,7 +165,7 @@ void fit()
       n++;
     }
   }
-  polyfit(n, u, v, ord, poly_coeff);
+  polyfit(n, u, v, view_ra, view_dec, ord, poly_coeff);
 
   if (applied == NULL) {
     applied = (double *)malloc(sizeof(double) * nr_rdls * 2);
@@ -196,7 +198,7 @@ void fit()
     applied[i * 2 + 0] = rdls_ra(i);
     applied[i * 2 + 1] = rdls_dec(i);
   }
-  polyapply(nr_rdls, applied, ord, poly_coeff);
+  polyapply(nr_rdls, applied, view_ra, view_dec, ord, poly_coeff);
 
   for (int i = 0; i < grid_ra_ngroups; i++) {
     for (int j = 0; j < GRID_SUBDIV; j++) {
@@ -205,7 +207,7 @@ void fit()
         (grid_dec_max - grid_dec_min) * ((double)j / (GRID_SUBDIV - 1));
     }
   }
-  polyapply(grid_ra_ngroups * GRID_SUBDIV, grid_ra_applied, ord, poly_coeff);
+  polyapply(grid_ra_ngroups * GRID_SUBDIV, grid_ra_applied, view_ra, view_dec, ord, poly_coeff);
   for (int i = 0; i < grid_dec_ngroups; i++) {
     for (int j = 0; j < GRID_SUBDIV; j++) {
       grid_dec_applied[(i * GRID_SUBDIV + j) * 2 + 0] = grid_ra_min +
@@ -213,7 +215,7 @@ void fit()
       grid_dec_applied[(i * GRID_SUBDIV + j) * 2 + 1] = grid_dec_min + 10 *i;
     }
   }
-  polyapply(grid_dec_ngroups * GRID_SUBDIV, grid_dec_applied, ord, poly_coeff);
+  polyapply(grid_dec_ngroups * GRID_SUBDIV, grid_dec_applied, view_ra, view_dec, ord, poly_coeff);
 }
 
 void update_and_draw()
@@ -470,6 +472,9 @@ int main(int argc, char *argv[])
   itex = LoadTextureFromImage(img);
 
   // Auxiliary data initialization
+  view_ra = 159.733;
+  view_dec = 78.015;
+
   for (long i = 0; i < nr_corr; i++) {
     if (corr_axyid(i) < AXY_LIMIT) axy_matched[corr_axyid(i)] = true;
   }
