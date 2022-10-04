@@ -70,6 +70,29 @@ double *read_fits_table(const char *path, const char **colnames, long *count)
   }
 
   free(colnums);
+  fits_close_file(ffp, &fstatus);
   *count = nr;
   return rec;
+}
+
+int read_fits_headers(const char *path, const char **keys, double *values)
+{
+  fitsfile *ffp;
+  int fstatus = 0;
+  if (fits_open_file(&ffp, path, READONLY, &fstatus) != 0) {
+    printf("Cannot open FITS file -- ");
+    fits_report_error(stdout, fstatus);
+    return 0;
+  }
+
+  int nc_req = 0;
+  while (keys[nc_req] != NULL) nc_req++;
+
+  for (int i = 0; i < nc_req; i++) {
+    if (fits_read_key(ffp, TDOUBLE, keys[i], &values[i], NULL, &fstatus) != 0)
+      break;
+  }
+
+  fits_close_file(ffp, &fstatus);
+  return nc_req;
 }

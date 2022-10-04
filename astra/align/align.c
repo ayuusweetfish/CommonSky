@@ -7,6 +7,7 @@
 #include <stdbool.h>
 
 double *read_fits_table(const char *path, const char **colnames, long *count);
+int read_fits_headers(const char *path, const char **keys, double *values);
 void polyfit(int n, double *u, double *v, double view_ra, double view_dec, int ord, double *o_coeff);
 void polyapply(int n, double *u, double view_ra, double view_dec, int ord, double *coeff);
 
@@ -50,19 +51,16 @@ double *data_xyls;
 #define cat_y(_i)   data_xyls[(_i) * 2 + 1]
 #define nr_cat nr_rdls
 
-const char *col_names_corr[] = {"index_x", "index_y", "field_id", "index_id", "index_ra", "index_dec", NULL};
+const char *col_names_corr[] = {"field_id", "index_id", NULL};
 long nr_corr;
 double *data_corr;
-#define corr_x(_i)      data_corr[(_i) * 6 + 0]
-#define corr_y(_i)      data_corr[(_i) * 6 + 1]
-#define corr_axyid(_i)  (long)data_corr[(_i) * 6 + 2]
-#define corr_catid(_i)  (long)data_corr[(_i) * 6 + 3]
-#define corr_ra(_i)     data_corr[(_i) * 6 + 4]
-#define corr_dec(_i)    data_corr[(_i) * 6 + 5]
+#define corr_axyid(_i)  (long)data_corr[(_i) * 2 + 0]
+#define corr_catid(_i)  (long)data_corr[(_i) * 2 + 1]
+
+const char *header_names_wcs[] = {"CRVAL1", "CRVAL2", "CRPIX1", "CRPIX2", NULL};
+double view_ra, view_dec;
 
 // Auxiliary data
-
-double view_ra, view_dec;
 
 const int AXY_LIMIT = 200;
 bool axy_matched[AXY_LIMIT] = { false };
@@ -438,7 +436,9 @@ int main(int argc, char *argv[])
   if (argc < 8) {
     printf("Usage: %s <image> <objs FITS (axy)> "
       "<catalogue FITS (rdls)> <catalogue FITS (xyls)> "
-      "<geometry FITS (wcs)> <link FITS (corr)> <save/load path>\n", argv[0]);
+      "<link FITS (corr)> "
+      "<geometry FITS (wcs)> "
+      "<save/load path>\n", argv[0]);
     return 0;
   }
 
@@ -471,16 +471,24 @@ int main(int argc, char *argv[])
     printf("Error loading the catalogue table (X, Y)\n");
     return 1;
   }
+  if ((data_corr = read_fits_table(argv[5], col_names_corr, &nr_corr)) == NULL) {
+    printf("Error loading the correlation table\n");
+    return 1;
+  }
+
   if (nr_rdls != nr_xyls) {
     printf("Different number of rows in RA-Dec and X-Y catalogue tables (%ld and %ld)\n",
       nr_rdls, nr_xyls);
     return 1;
   }
-  // TODO: Load header from argv[5]
-  if ((data_corr = read_fits_table(argv[6], col_names_corr, &nr_corr)) == NULL) {
-    printf("Error loading the correlation table\n");
+  double wcs_header_values[4];
+  if (read_fits_headers(argv[6], header_names_wcs, wcs_header_values) == 0) {
+    printf("Error loading the geometry (WCS) metadata\n");
     return 1;
   }
+  // XXX: CRPIX1 and CRPIX2 values are unused. Possible?
+  view_ra = wcs_header_values[0];
+  view_dec = wcs_header_values[1];
 
   // Graphics setup
   SetConfigFlags(FLAG_MSAA_4X_HINT);
@@ -490,9 +498,6 @@ int main(int argc, char *argv[])
   itex = LoadTextureFromImage(img);
 
   // Auxiliary data initialization
-  view_ra = 159.733;
-  view_dec = 78.015;
-
   for (long i = 0; i < nr_corr; i++) {
     if (corr_axyid(i) < AXY_LIMIT) axy_matched[corr_axyid(i)] = true;
   }
