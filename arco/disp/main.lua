@@ -79,7 +79,7 @@ local lastfrozen = 0
 
 local canvasupper = love.graphics.newCanvas()
 
-local freezeafter = 12
+local freezeafter = 9
 local enterinterval = 0.4
 
 local totaltime = 240 * (enterinterval * #imgs + freezeafter)
@@ -90,10 +90,73 @@ local logstats = function ()
   print('img: ', stats.images)
 end
 
-local draw = function ()
-  love.graphics.clear(0.1, 0.1, 0.15)
-  love.graphics.setColor(1, 1, 1)
+local gradient = function (horiz, points)
+  local verts = {}
+  for i = 1, #points - 1, 2 do
+    local x = points[i]
+    local a = points[i + 1]
+    if horiz then
+      verts[#verts + 1] = {x, 0, x, 0, 1, 1, 1, a}
+      verts[#verts + 1] = {x, 1, x, 1, 1, 1, 1, a}
+    else
+      verts[#verts + 1] = {0, x, 0, x, 1, 1, 1, a}
+      verts[#verts + 1] = {1, x, 1, x, 1, 1, 1, a}
+    end
+  end
+  return love.graphics.newMesh(verts, 'strip', 'static')
+end
 
+local skygradient = gradient(false, {
+  0.00, 0.0,
+  0.66, 0.3,
+  0.95, 0.7,
+  1.00, 0.0,
+})
+local skyhgradient = gradient(true, {
+  0.00, 0.0,
+  0.25, 0.3,
+  0.40, 0.6,
+  0.60, 0.6,
+  0.75, 0.3,
+  1.00, 0.0,
+})
+local watergradient = gradient(false, {
+  0.00, 0.0,
+  0.25, 0.1,
+  1.00, 0.2,
+})
+
+local draw = function ()
+  local fadeprogr = 1 - math.max(0, math.min(1, T / totaltime))
+  local fade = function (a, b, c)
+    if fadeprogr >= 0.5 then
+      local x = (1 - math.cos((fadeprogr - 0.5) * 2 * math.pi)) / 2
+      return b + x * (c - b)
+    else
+      local x = (1 - math.cos(fadeprogr * 2 * math.pi)) / 2
+      return a + x * (b - a)
+    end
+  end
+  love.graphics.setCanvas(nil)
+  love.graphics.clear(
+    fade(0.10, 0.90, 0.85),
+    fade(0.10, 0.70, 0.92),
+    fade(0.15, 0.55, 1.00)
+  )
+
+  love.graphics.setShader(nil)
+  love.graphics.setBlendMode('alpha')
+  local skyalpha = math.max(0, math.min(1, (fadeprogr - 0.2) / 0.3))
+  local skyorange = math.max(0, math.min(1, (0.8 - fadeprogr) / 0.3))
+  local skyr, skyg, skyb = 0.94, 0.96 - skyorange * 0.1, 1.0 - skyorange * 0.5
+  love.graphics.setColor(skyr, skyg, skyb, skyalpha)
+  love.graphics.draw(skygradient, 0, 0, 0, W, arcoy * 1.05)
+  love.graphics.setColor(skyr, skyg, skyb, skyorange * skyalpha * skyalpha)
+  love.graphics.draw(skyhgradient, 0, 0, 0, W, arcoy)
+  love.graphics.setColor(0.03, 0.15, 0.3, (math.cos(fadeprogr * math.pi * 2) + 1) / 2)
+  love.graphics.draw(watergradient, 0, arcoy, 0, W, H - arcoy)
+
+  love.graphics.setColor(1, 1, 1)
   love.graphics.setBlendMode('alpha', 'premultiplied')
   love.graphics.setCanvas(canvasupper)
   love.graphics.clear(0, 0, 0, 0)

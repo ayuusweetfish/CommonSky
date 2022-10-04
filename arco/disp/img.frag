@@ -116,7 +116,7 @@ vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords) {
   arcoangle = mod(arcoangle + pi * 1.5, pi * 2) - pi * 1.5;
   float anglerange = clamp(min(
     angle_span * 2 * (1 - exp(-1 * time)) - 0.1,
-    angle_span - 0.1 + 20 * exp(3 - time)
+    angle_span - 0.1 + 20 * exp(-time)
   ), -0.1, pi);
   float anglerate =
     1 - smoothstep(anglerange, anglerange + 0.1,
