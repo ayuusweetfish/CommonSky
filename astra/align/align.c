@@ -155,7 +155,7 @@ double *grid_dec_applied = NULL;
 
 void fit()
 {
-  int ord = 4;
+  int ord = 6;
 
   static double u[AXY_LIMIT * 2];
   static double v[AXY_LIMIT * 2];

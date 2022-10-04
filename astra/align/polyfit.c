@@ -77,6 +77,8 @@ void polyfit(int n, double *u, double *v, double view_ra, double view_dec, int o
       }
     }
   }
+  // Ridge regression
+  for (int i = 0; i < n_coeffs; i++) XTX[i * n_coeffs + i] += 1e-8;
   // X^T * Y
   double *XTY = (double *)malloc(sizeof(double) * n_coeffs * 2);
   memset(XTY, 0, sizeof(double) * n_coeffs * 2);
