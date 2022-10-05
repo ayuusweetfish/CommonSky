@@ -128,6 +128,9 @@ local watergradient = gradient(false, {
 
 local draw = function ()
   local fadeprogr = 1 - math.max(0, math.min(1, T / totaltime))
+  local faderemap = 0.7 -- 0.5 to 1; the peak of sunset
+  fadeprogr = math.max(fadeprogr * 0.5 / faderemap,
+    0.5 + 0.5 * (fadeprogr - faderemap) / (1 - faderemap))
   local fade = function (a, b, c)
     if fadeprogr >= 0.5 then
       local x = (1 - math.cos((fadeprogr - 0.5) * 2 * math.pi)) / 2
@@ -153,7 +156,7 @@ local draw = function ()
   love.graphics.draw(skygradient, 0, 0, 0, W, arcoy * 1.05)
   love.graphics.setColor(skyr, skyg, skyb, skyorange * skyalpha * skyalpha)
   love.graphics.draw(skyhgradient, 0, 0, 0, W, arcoy)
-  love.graphics.setColor(0.03, 0.15, 0.3, (math.cos(fadeprogr * math.pi * 2) + 1) / 2)
+  love.graphics.setColor(0.03, 0.15, 0.3, math.sqrt((math.cos(fadeprogr * math.pi * 2) + 1) / 2))
   love.graphics.draw(watergradient, 0, arcoy, 0, W, H - arcoy)
 
   love.graphics.setColor(1, 1, 1)
@@ -177,6 +180,7 @@ local draw = function ()
       -- print('create') logstats()
     end
     imgshader:send('tex_dims', {iw * isc, ih * isc})
+    -- Unexpectedly generates subtle textures!!
     imgshader:send('seed', {i * 2000, i * 4000})
     imgshader:send('time', T / 240 - i * enterinterval)
     imgshader:send('angle_cen', -ianglecen)

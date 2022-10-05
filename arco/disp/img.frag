@@ -106,7 +106,7 @@ vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords) {
   float arcorate = 1;
   if (arcodist > targetdist) {
     float x = (arcodist - targetdist) / 50;
-    arcorate = exp(-x * x) * 0.8 + 0.2;
+    arcorate = exp(-x * x) * 0.88 + 0.12;
   }
   // Angle proximity
   float arcoangle = atan(
@@ -120,7 +120,7 @@ vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords) {
   ), -0.1, pi);
   float anglerate =
     1 - smoothstep(anglerange, anglerange + 0.1,
-      abs(angle_cen - arcoangle)) * (1 - 0.2 * clamp((time - 2) / 3, 0, 1));
+      abs(angle_cen - arcoangle)) * (1 - 0.12 * clamp((time - 2) / 3, 0, 1));
   rate *= min(arcorate, anglerate);
   // Clamp angle
   rate *= clamp(-arcoangle / 0.03 + 1, 0, 1);
