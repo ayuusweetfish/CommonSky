@@ -63,7 +63,7 @@ double view_ra, view_dec;
 
 // Auxiliary data
 
-const int AXY_LIMIT = 200;
+const int AXY_LIMIT = 300;
 bool axy_matched[AXY_LIMIT] = { false };
 
 // Reverse lookup of catalogue (rdls) records in correltaion table
@@ -164,7 +164,7 @@ void save_coeff()
 
 int grid_ra_min, grid_ra_max;
 int grid_dec_min, grid_dec_max;
-const int GRID_SUBDIV = 25;
+const int GRID_SUBDIV = 50;
 double grid_ra_ngroups, grid_dec_ngroups;
 double *grid_ra_applied = NULL;
 double *grid_dec_applied = NULL;
@@ -458,6 +458,8 @@ int main(int argc, char *argv[])
     return 0;
   }
 
+  SetTraceLogLevel(LOG_WARNING);
+
   // Load image
   Image img = LoadImage(argv[1]);
   iw = img.width;
@@ -468,7 +470,7 @@ int main(int argc, char *argv[])
   }
 
   float scx = (float)1080 / iw;
-  float scy = (float)960 / ih;
+  float scy = (float)800 / ih;
   sc = sc_base = (scx < scy ? scx : scy);
   scrw = iw * sc; // Round down to avoid black borders
   scrh = ih * sc;
@@ -526,7 +528,18 @@ int main(int argc, char *argv[])
   memset(refi_cat_match, -1, sizeof(int) * nr_cat);
   save_load_path = argv[7];
   load();
+
   coeff_path = argv[8];
+  FILE *fp_coeff = fopen(coeff_path, "r");
+  if (fp_coeff) {
+    int saved_ord;
+    fscanf(fp_coeff, "%d", &saved_ord);
+    if (saved_ord != ord && saved_ord > 0 && saved_ord <= MAX_ORD) {
+      ord = saved_ord;
+      printf("Order set to %d\n", ord);
+    }
+    fclose(fp_coeff);
+  }
 
   while (!WindowShouldClose()) {
     update_and_draw();

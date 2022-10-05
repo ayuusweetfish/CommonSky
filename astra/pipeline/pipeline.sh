@@ -1,4 +1,20 @@
+img_path=../img
+img_proc=../img-processed
+
 solve_field=${solve_field:-solve-field}
+if [ ! -z "$1" ]; then
+  n=$1
+  ../align/align \
+    $img_proc/$n.png \
+    $img_proc/$n.axy \
+    $img_proc/$n.rdls \
+    $img_proc/$n-indx.xyls \
+    $img_proc/$n.corr \
+    $img_proc/$n.wcs \
+    $img_proc/$n.refi \
+    $img_proc/$n.coeff
+  exit
+fi
 
 if [ ! -f ./selcrop ]; then
   echo "Please build ./selcrop first"
@@ -10,9 +26,6 @@ elif ! command $solve_field &>/dev/null; then
   echo "Command \"$solve_field\" is not valid. Please properly set \$solve_field to point to the astrometry.net installation."
   exit 1
 fi
-
-img_path=../img
-img_proc=../img-processed
 
 images=`find $img_path -name *.jpg`
 
