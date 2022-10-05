@@ -40,9 +40,8 @@ static inline void stereo_proj(
 //  sum_{i,j>=0, i+j<=ord} C[c,i,j] ux^i uy^j
 // C[c,i,j] = o_coeff[c * (ord+1)*(ord+2)/2 + (i*(ord+1) + j - i*(i-1)/2)]
 
-#define id(_i, _j) ((_i)*(ord+1) + (_j) - (_i)*((_i)-1)/2)
-#define C(_c, _i, _j) \
-  COEFF[(_c) * (ord+1)*(ord+2)/2 + id((_i), (_j))]
+#define id(_i, _j) (((_i)+(_j)) * ((_i)+(_j)+1) / 2 + (_i))
+#define C(_c, _i, _j) COEFF[id((_i), (_j)) * 2 + (_c)]
 
 #define COEFF o_coeff
 void polyfit(int n, double *u, double *v, double view_ra, double view_dec, int ord, double *o_coeff)
@@ -97,15 +96,17 @@ void polyfit(int n, double *u, double *v, double view_ra, double view_dec, int o
     }
   }
   // Invert and multiply
+/*
   double LLS_sol[n_coeffs][2];
   invert_mul(n_coeffs, 2, &XTX[0], &XTY[0], &LLS_sol[0][0]);
-  // Copy to coefficients as a starting point
   for (int c = 0; c < 2; c++) {
     for (int xp1 = 0; xp1 <= ord; xp1++)
     for (int yp1 = 0; yp1 <= ord - xp1; yp1++) {
       C(c, xp1, yp1) = LLS_sol[id(xp1, yp1)][c];
     }
   }
+*/
+  invert_mul(n_coeffs, 2, &XTX[0], &XTY[0], o_coeff);
 
   free(XTX);
   free(uxpow);

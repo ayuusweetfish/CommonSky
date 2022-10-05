@@ -1,3 +1,4 @@
+// gcc -o align -O2 align.c readfits.c polyfit.c -I ~/Downloads/raylib-4.2.0/src ~/Downloads/raylib-4.2.0/build/raylib/libraylib.a -framework OpenGL -framework Cocoa -framework IOKit -lcfitsio
 #include "raylib.h"
 
 #include <math.h>
@@ -142,9 +143,24 @@ void load()
 }
 
 // For fitting
-#define MAX_ORD 20
+#define MAX_ORD 10
 double poly_coeff[(MAX_ORD + 1) * (MAX_ORD + 2)];
+int ord = 6;
 double *applied = NULL;
+
+const char *coeff_path = NULL;
+void save_coeff()
+{
+  FILE *fp = fopen(coeff_path, "w");
+  if (fp == NULL) {
+    printf("Cannot save to %s\n", coeff_path);
+    exit(1);
+  }
+  fprintf(fp, "%d\n%.16lf %.16lf\n", ord, view_ra, view_dec);
+  for (int i = 0; i < (ord + 1) * (ord + 2); i++)
+    fprintf(fp, "%.16lf\n", poly_coeff[i]);
+  fclose(fp);
+}
 
 int grid_ra_min, grid_ra_max;
 int grid_dec_min, grid_dec_max;
@@ -155,8 +171,6 @@ double *grid_dec_applied = NULL;
 
 void fit()
 {
-  int ord = 6;
-
   static double u[AXY_LIMIT * 2];
   static double v[AXY_LIMIT * 2];
   int n = 0;
@@ -170,6 +184,7 @@ void fit()
     }
   }
   polyfit(n, u, v, view_ra, view_dec, ord, poly_coeff);
+  save_coeff();
 
   if (applied == NULL) {
     applied = (double *)malloc(sizeof(double) * nr_cat * 2);
@@ -348,7 +363,7 @@ void update_and_draw()
     }
     for (long i = 0; i < nr_cat; i++) {
       DrawRing(scale(cat_x(i), cat_y(i)),
-        2, 4, 0, 360, 12, GREEN);
+        2, 4, 0, 360, 12, corr_id[i] != -1 ? GREEN : LIME);
       if (corr_id[i] != -1)
         DrawLineEx(
           scale(cat_x(i), cat_y(i)),
@@ -433,12 +448,13 @@ void update_and_draw()
 
 int main(int argc, char *argv[])
 {
-  if (argc < 8) {
+  if (argc < 9) {
     printf("Usage: %s <image> <objs FITS (axy)> "
       "<catalogue FITS (rdls)> <catalogue FITS (xyls)> "
       "<link FITS (corr)> "
       "<geometry FITS (wcs)> "
-      "<save/load path>\n", argv[0]);
+      "<save/load path> "
+      "<coefficients save path>\n", argv[0]);
     return 0;
   }
 
@@ -510,6 +526,7 @@ int main(int argc, char *argv[])
   memset(refi_cat_match, -1, sizeof(int) * nr_cat);
   save_load_path = argv[7];
   load();
+  coeff_path = argv[8];
 
   while (!WindowShouldClose()) {
     update_and_draw();
