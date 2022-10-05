@@ -145,7 +145,7 @@ void load()
 // For fitting
 #define MAX_ORD 10
 double poly_coeff[(MAX_ORD + 1) * (MAX_ORD + 2)];
-int ord = 6;
+int ord = 4;
 double *applied = NULL;
 
 const char *coeff_path = NULL;

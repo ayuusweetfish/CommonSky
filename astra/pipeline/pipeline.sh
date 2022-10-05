@@ -45,7 +45,7 @@ for i in $images; do
   n=${bn%.*}
   if [ ! -f "$img_proc/$n.solved" ]; then
     echo $bn
-    $solve_field --scale-low 10 --tweak-order 3 --crpix-center $img_proc/$n.png
+    $solve_field --scale-low 10 --tweak-order 3 --crpix-center $img_proc/$n.png --overwrite
   fi
 done
 
