@@ -63,15 +63,15 @@ double view_ra, view_dec;
 
 // Auxiliary data
 
-const int AXY_LIMIT = 300;
-bool axy_matched[AXY_LIMIT] = { false };
+int axy_limit;
+bool *axy_matched;
 
 // Reverse lookup of catalogue (rdls) records in correltaion table
 // -1 if not present
 int *corr_id;
 
 // Refinement
-int refi_axy_match[AXY_LIMIT];
+int *refi_axy_match;
 int *refi_cat_match;
 
 static inline void refi_clear_axy(int a)
@@ -122,7 +122,7 @@ void save()
     printf("Cannot save to %s\n", save_load_path);
     exit(1);
   }
-  for (long i = 0; i < nr_axy && i < AXY_LIMIT; i++)
+  for (long i = 0; i < nr_axy && i < axy_limit; i++)
     fprintf(fp, "%d ", refi_axy_match[i]);
   fclose(fp);
 }
@@ -130,16 +130,24 @@ void load()
 {
   FILE *fp = fopen(save_load_path, "r");
   if (fp == NULL) return;
-  for (long i = 0; i < nr_axy && i < AXY_LIMIT; i++)
+  for (long i = 0; i < nr_axy && i < axy_limit; i++)
     fscanf(fp, "%d", &refi_axy_match[i]);
   if (ferror(fp)) {
     printf("Cannot load from %s\n", save_load_path);
     exit(1);
   }
   fclose(fp);
-  for (long i = 0; i < nr_axy && i < AXY_LIMIT; i++)
+  for (long i = 0; i < nr_axy && i < axy_limit; i++)
     if (refi_axy_match[i] != -1)
       refi_cat_match[refi_axy_match[i]] = i;
+}
+int probe_axy_limit()
+{
+  FILE *fp = fopen(save_load_path, "r");
+  if (fp == NULL) return 500;
+  int count = 0, x;
+  while (fscanf(fp, "%d", &x) == 1) count++;
+  return count;
 }
 
 // For fitting
@@ -171,10 +179,10 @@ double *grid_dec_applied = NULL;
 
 void fit()
 {
-  static double u[AXY_LIMIT * 2];
-  static double v[AXY_LIMIT * 2];
+  double *u = (double *)malloc(sizeof(double) * axy_limit * 2);
+  double *v = (double *)malloc(sizeof(double) * axy_limit * 2);
   int n = 0;
-  for (long i = 0; i < nr_axy && i < AXY_LIMIT; i++) {
+  for (long i = 0; i < nr_axy && i < axy_limit; i++) {
     if (refi_axy_match[i] != -1) {
       u[n * 2 + 0] = cat_ra(refi_axy_match[i]);
       u[n * 2 + 1] = cat_dec(refi_axy_match[i]);
@@ -184,6 +192,8 @@ void fit()
     }
   }
   polyfit(n, u, v, view_ra, view_dec, ord, poly_coeff);
+  free(u);
+  free(v);
   save_coeff();
 
   if (applied == NULL) {
@@ -285,7 +295,7 @@ void update_and_draw()
     if (!rectsel) {
       #define dist_sq(_x, _y) \
         ((p.x - (_x)) * (p.x - (_x)) + (p.y - (_y)) * (p.y - (_y)))
-      double dsq_best = 100;
+      double dsq_best = 100 / (sc * sc);
       if (sel_cat == -1) {
         hover_cat = -1;
         for (long i = 0; i < nr_cat; i++) {
@@ -301,7 +311,7 @@ void update_and_draw()
         }
       } else {
         hover_axy = -1;
-        for (long i = 0; i < nr_axy && i < AXY_LIMIT; i++) {
+        for (long i = 0; i < nr_axy && i < axy_limit; i++) {
           double dsq = dist_sq(axy_x(i), axy_y(i));
           if (dsq < dsq_best) { dsq_best = dsq; hover_axy = i; }
         }
@@ -331,7 +341,8 @@ void update_and_draw()
               between(cat_y(i), recty, p.y)) {
             if (rectremove) {
               refi_clear_cat(i);
-            } else if (corr_axyid(corr_id[i]) < AXY_LIMIT &&
+            } else if (corr_id[i] != -1 &&
+                corr_axyid(corr_id[i]) < axy_limit &&
                 between(axy_x(corr_axyid(corr_id[i])), rectx, p.x) &&
                 between(axy_y(corr_axyid(corr_id[i])), recty, p.y)) {
               refi_match(i, corr_axyid(corr_id[i]));
@@ -352,12 +363,12 @@ void update_and_draw()
   // solve-field.c: plot_index_overlay
   if (show_calculated) {
     for (long i = 0; i < nr_corr; i++) {
-      if (corr_axyid(i) >= AXY_LIMIT)
+      if (corr_axyid(i) >= axy_limit)
         DrawRing(
           scale(axy_x(corr_axyid(i)), axy_y(corr_axyid(i))),
           4, 6, 0, 360, 12, PURPLE);
     }
-    for (long i = 0; i < nr_axy && i < AXY_LIMIT; i++) {
+    for (long i = 0; i < nr_axy && i < axy_limit; i++) {
       DrawRing(scale(axy_x(i), axy_y(i)),
         4, 6, 0, 360, 12, axy_matched[i] ? ORANGE : RED);
     }
@@ -371,7 +382,7 @@ void update_and_draw()
           2, GREEN);
     }
   } else if (dispmode == DISP_REFINED) {
-    for (long i = 0; i < nr_axy && i < AXY_LIMIT; i++) {
+    for (long i = 0; i < nr_axy && i < axy_limit; i++) {
       DrawRing(scale(axy_x(i), axy_y(i)),
         4, 6, 0, 360, 12,
         i == hover_axy ?
@@ -425,7 +436,7 @@ void update_and_draw()
         ), 2, Fade(GRAY, 0.5));
     }
     // Image objects
-    for (long i = 0; i < nr_axy && i < AXY_LIMIT; i++) {
+    for (long i = 0; i < nr_axy && i < axy_limit; i++) {
       DrawRing(scale(axy_x(i), axy_y(i)),
         4, 6, 0, 360, 12, refi_axy_match[i] != -1 ? ORANGE : RED);
       if (refi_axy_match[i] != -1)
@@ -470,7 +481,7 @@ int main(int argc, char *argv[])
   }
 
   float scx = (float)1080 / iw;
-  float scy = (float)800 / ih;
+  float scy = (float)720 / ih;
   sc = sc_base = (scx < scy ? scx : scy);
   scrw = iw * sc; // Round down to avoid black borders
   scrh = ih * sc;
@@ -516,18 +527,22 @@ int main(int argc, char *argv[])
   itex = LoadTextureFromImage(img);
 
   // Auxiliary data initialization
+  save_load_path = argv[7];
+  axy_limit = probe_axy_limit();
+  refi_axy_match = (int *)malloc(sizeof(int) * axy_limit);
+  memset(refi_axy_match, -1, sizeof(int) * axy_limit);
+  refi_cat_match = (int *)malloc(sizeof(int) * nr_cat);
+  memset(refi_cat_match, -1, sizeof(int) * nr_cat);
+  load();
+
+  axy_matched = (bool *)malloc(sizeof(bool) * axy_limit);
+  memset(axy_matched, 0, sizeof(bool) * axy_limit);
   for (long i = 0; i < nr_corr; i++) {
-    if (corr_axyid(i) < AXY_LIMIT) axy_matched[corr_axyid(i)] = true;
+    if (corr_axyid(i) < axy_limit) axy_matched[corr_axyid(i)] = true;
   }
   corr_id = (int *)malloc(sizeof(int) * nr_cat);
   memset(corr_id, -1, sizeof(int) * nr_cat);
   for (long i = 0; i < nr_corr; i++) corr_id[corr_catid(i)] = i;
-
-  memset(refi_axy_match, -1, sizeof refi_axy_match);
-  refi_cat_match = (int *)malloc(sizeof(int) * nr_cat);
-  memset(refi_cat_match, -1, sizeof(int) * nr_cat);
-  save_load_path = argv[7];
-  load();
 
   coeff_path = argv[8];
   FILE *fp_coeff = fopen(coeff_path, "r");

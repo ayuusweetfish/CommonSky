@@ -27,7 +27,7 @@ elif ! command $solve_field &>/dev/null; then
   exit 1
 fi
 
-images=`find $img_path -name *.jpg`
+images=`find $img_path \( -name "*.jpg" -o -name "*.png" \)`
 
 echo "(1/3) Crop"
 for i in $images; do
@@ -43,9 +43,10 @@ echo "(2/3) Solve"
 for i in $images; do
   bn=`basename $i`
   n=${bn%.*}
-  if [ ! -f "$img_proc/$n.solved" ]; then
+  if [ ! -f "$img_proc/$n.tried" ]; then
     echo $bn
-    $solve_field --scale-low 10 --tweak-order 3 --crpix-center $img_proc/$n.png --overwrite
+    $solve_field --scale-low 10 --tweak-order 2 --crpix-center --parity neg $img_proc/$n.png --overwrite
+    touch $img_proc/$n.tried
   fi
 done
 
