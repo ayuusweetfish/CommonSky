@@ -25,10 +25,10 @@ static inline void stereo_proj(
   x0 = x; y0 = y;
   x = x0 * cos(rot_ra) - y0 * sin(rot_ra);
   y = x0 * sin(rot_ra) + y0 * cos(rot_ra);
-  // Around X
-  y0 = y; z0 = z;
-  y = y0 * cos(rot_dec) - z0 * sin(rot_dec);
-  z = y0 * sin(rot_dec) + z0 * cos(rot_dec);
+  // Around Y
+  x0 = x; z0 = z;
+  x = x0 * cos(rot_dec) - z0 * sin(rot_dec);
+  z = x0 * sin(rot_dec) + z0 * cos(rot_dec);
   // Stereographic projection
   *o_x = x / (1 - z);
   *o_y = y / (1 - z);
