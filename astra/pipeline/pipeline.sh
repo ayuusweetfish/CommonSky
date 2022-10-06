@@ -54,7 +54,7 @@ echo "(3/3) Refine alignment"
 for i in $images; do
   bn=`basename $i`
   n=${bn%.*}
-  if [ ! -f "$img_proc/$n.coeff" ]; then
+  if [ -f "$img_proc/$n.solved" ] && [ ! -f "$img_proc/$n.coeff" ]; then
     echo $bn
     ../align/align \
       $img_proc/$n.png \
