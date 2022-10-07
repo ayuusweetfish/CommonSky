@@ -1,20 +1,11 @@
 #include "glad.h" // --profile="compatibility" --api="gl=3.2" --generator="c" --spec="gl" --local-files --extensions=""
 #include "GLFW/glfw3.h"
 
-#include <assert.h>
-#include <math.h>
-#include <stdbool.h>
-#include <stdio.h>
+#include "glwrap.h"
 
-#define assert_gl() assert_gl_(__LINE__)
-static inline void assert_gl_(int line)
-{
-  GLenum e = glGetError();
-  if (e != 0) {
-    printf("line %d: glGetError() = %d\n", line, (int)e);
-    assert(false);
-  }
-}
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 GLFWwindow *window;
 
@@ -23,23 +14,67 @@ void fb_size_changed(GLFWwindow *window, int w, int h)
   glViewport(0, 0, w, h);
 }
 
+draw_state st;
+
+static inline char *read_all(const char *path)
+{
+  FILE *f = fopen(path, "r");
+  fseek(f, -1, SEEK_END);
+  size_t len = (size_t)ftell(f);
+  fseek(f, 0, SEEK_SET);
+  char *buf = (char *)malloc(len + 1);
+  fread(buf, len, 1, f);
+  fclose(f);
+  buf[len] = '\0';
+  return buf;
+}
+
 void setup()
 {
+  st = state_new();
+  char *vs = read_all("1.vert");
+  char *fs = read_all("1.frag");
+  state_shader(&st, vs, fs);
+  free(vs);
+  free(fs);
+  st.stride = 2;
+  state_attr(st, 0, 0, 2);
+  const float fullscreen_coords[12] = {
+    -1.0, -1.0, -1.0,  1.0,  1.0,  1.0,
+    -1.0, -1.0,  1.0, -1.0,  1.0,  1.0,
+  };
+  state_buffer(&st, 6, fullscreen_coords);
 }
+
+double view_ra = 0, view_dec = 0;
 
 void update()
 {
   static double last_x = NAN, last_y;
   double x, y;
   glfwGetCursorPos(window, &x, &y);
-  float dx = (isnan(last_x) ? 0 : x - last_x);
-  float dy = (isnan(last_x) ? 0 : y - last_y);
+  double dx = (isnan(last_x) ? 0 : x - last_x);
+  double dy = (isnan(last_x) ? 0 : y - last_y);
   last_x = x;
   last_y = y;
+
+  view_ra += dx * 0.2;
+  view_ra = fmod(view_ra + 360, 360);
+  view_dec -= dy * 0.2;
+  view_dec = (view_dec > 88 ? 88 : view_dec < -88 ? -88 : view_dec);
+  // printf("%.4lf %.4lf\n", view_ra, view_dec);
 }
 
 void draw()
 {
+  glClearColor(0.8, 0.8, 0.82, 1);
+  glClear(GL_COLOR_BUFFER_BIT);
+
+  float ra = view_ra * (M_PI/180);
+  float dec = view_dec * (M_PI/180);
+  state_uniform2f(st, "viewCoord", ra, dec);
+  // state_uniform3f(st, "viewCen", cos(dec) * cos(ra), cos(dec) * sin(ra), sin(dec));
+  state_draw(st);
 }
 
 int main(int argc, char *argv[])
