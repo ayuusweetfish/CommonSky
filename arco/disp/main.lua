@@ -69,6 +69,8 @@ function love.update(dt)
 end
 
 -- Separated since love.filesystem.read returns contents and length
+local skybgshadersrc = love.filesystem.read('skybg.frag')
+local skybgshader = love.graphics.newShader(skybgshadersrc)
 local imgshadersrc = love.filesystem.read('img.frag')
 local imgshader = love.graphics.newShader(imgshadersrc)
 local uppershadersrc = love.filesystem.read('upper.frag')
@@ -131,21 +133,26 @@ local draw = function ()
   local faderemap = 0.7 -- 0.5 to 1; the peak of sunset
   fadeprogr = math.max(fadeprogr * 0.5 / faderemap,
     0.5 + 0.5 * (fadeprogr - faderemap) / (1 - faderemap))
-  local fade = function (a, b, c)
-    if fadeprogr >= 0.5 then
-      local x = (1 - math.cos((fadeprogr - 0.5) * 2 * math.pi)) / 2
+  local fade = function (x, a, b, c)
+    if x >= 0.5 then
+      local x = (1 - math.cos((x - 0.5) * 2 * math.pi)) / 2
       return b + x * (c - b)
     else
-      local x = (1 - math.cos(fadeprogr * 2 * math.pi)) / 2
+      local x = (1 - math.cos(x * 2 * math.pi)) / 2
       return a + x * (b - a)
     end
   end
+  local skytint = function (x)
+    return
+      fade(x, 0.10, 0.90, 0.85),
+      fade(x, 0.10, 0.70, 0.92),
+      fade(x, 0.15, 0.55, 1.00)
+  end
   love.graphics.setCanvas(nil)
-  love.graphics.clear(
-    fade(0.10, 0.90, 0.85),
-    fade(0.10, 0.70, 0.92),
-    fade(0.15, 0.55, 1.00)
-  )
+  love.graphics.setShader(skybgshader)
+  skybgshader:send('c', {skytint(math.max(0, fadeprogr))})
+  love.graphics.setBlendMode('alpha')
+  love.graphics.rectangle('fill', 0, 0, W, H)
 
   love.graphics.setShader(nil)
   love.graphics.setBlendMode('alpha')
