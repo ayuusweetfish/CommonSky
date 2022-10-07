@@ -1,3 +1,4 @@
+uniform vec2 screenoffs;
 uniform vec2 arcopos;
 uniform float arcor;
 
@@ -90,9 +91,11 @@ float lerp(float x, float a, float b)
 }
 
 vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords) {
+  screen_coords -= screenoffs;
   vec4 c = Texel(tex, texture_coords) * color;
   float headroom = 0.5;
-  float rate = 1 + headroom;
+  float rate = 1;
+  float noiserate = 1 + headroom;
   // Edges
   float eps = 10;
   vec2 texpixcoord = texture_coords * tex_dims;
@@ -100,33 +103,37 @@ vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords) {
   if (texpixcoord.x > tex_dims.x - eps) rate *= (tex_dims.x - texpixcoord.x) / eps;
   if (texpixcoord.y < eps) rate *= texpixcoord.y / eps;
   if (texpixcoord.y > tex_dims.y - eps) rate *= (tex_dims.y - texpixcoord.y) / eps;
-  // Arco proximity
-  float arcodist = abs(arcor - length(screen_coords - arcopos));
-  float targetdist = 15 + exp(-2 * max(0, time - 3)) * 1000;
-  float arcorate = 1;
-  if (arcodist > targetdist) {
-    float x = (arcodist - targetdist) / 50;
-    arcorate = exp(-x * x) * 0.88 + 0.12;
-  }
-  // Angle proximity
+  // Entering: Angle proximity
   float arcoangle = atan(
     (screen_coords - arcopos).y,
     (screen_coords - arcopos).x
   );
   arcoangle = mod(arcoangle + pi * 1.5, pi * 2) - pi * 1.5;
-  float anglerange = clamp(min(
-    angle_span * 2 * (1 - exp(-1 * time)) - 0.1,
-    angle_span - 0.1 + 20 * exp(-time)
-  ), -0.1, pi);
-  float anglerate =
-    1 - smoothstep(anglerange, anglerange + 0.1,
+  float inanglerange = clamp(
+    angle_span * 2 * (1 - exp(-1.5 * time)) - 0.1,
+    -0.1, pi);
+  float inanglerate =
+    1 - smoothstep(inanglerange, inanglerange + 0.1,
       abs(angle_cen - arcoangle)) * (1 - 0.12 * clamp((time - 2) / 3, 0, 1));
-  rate *= min(arcorate, anglerate);
+  rate *= inanglerate;
+  // Erosion
+  float arcodist = abs(arcor - length(screen_coords - arcopos));
+  float erosion = smoothstep(0, 1, (time - 2) / 3 + arcodist / 1000);
+  if (erosion > 0) {
+    // Arco proximity
+    float x = arcodist / 60;
+    float arcorate = exp(-x * x);
+    // Angle proximity
+    float outanglerate = 1 - smoothstep(
+      angle_span, angle_span + 0.1, abs(angle_cen - arcoangle));
+    noiserate *= lerp(erosion, 1, 0.12 + min(arcorate, outanglerate) * 0.88);
+  }
   // Clamp angle
-  rate *= clamp(-arcoangle / 0.03 + 1, 0, 1);
-  rate *= clamp((pi + arcoangle) / 0.03 + 1, 0, 1);
+  noiserate *= clamp(-arcoangle / 0.03 + 1, 0, 1);
+  noiserate *= clamp((pi + arcoangle) / 0.03 + 1, 0, 1);
   // Final processing
-  float val = (snoise(seed + screen_coords / 10) + 1) / 2;
-  c.a = clamp((rate - val) / headroom, 0, 1);
+  float noiseval = (snoise(seed + screen_coords / 15) + 1) / 2;
+  c.a = clamp((noiserate - noiseval) / headroom, 0, 1);
+  c.a *= rate;
   return c;
 }

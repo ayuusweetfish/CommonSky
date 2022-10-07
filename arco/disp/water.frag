@@ -1,3 +1,4 @@
+uniform float screenoffs;
 uniform float time;
 uniform float texdevrate;
 
@@ -156,12 +157,14 @@ float snoise(vec3 v)
 }
 
 vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords) {
+  screen_coords.y -= screenoffs;
+  float limit = 0.72 + screenoffs / love_ScreenSize.y;
   float y0 = texture_coords.y;
-  if (y0 <= 0.72) return vec4(0);
-  texture_coords.y = 0.72 * 2 - y0;
+  if (y0 <= limit) return vec4(0);
+  texture_coords.y = limit * 2 - y0;
   // texture_coords += snoise(screen_coords / 10) * 0.01;
   vec2 texdev = vec2(
-    (y0 - 0.72) * (y0 - 0.72) * sin(y0 * 30 + time * 1) * 0.3,
+    (y0 - limit) * (y0 - limit) * sin(y0 * 30 + time * 1) * 0.3,
     snoise((screen_coords - vec2(0, time * y0 * 10)) / 1000) * 0.03
   );
   texture_coords += texdev * texdevrate;
@@ -170,6 +173,6 @@ vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords) {
   float alphanoise = 0.03 * texdevrate * snoise(vec3(
     (screen_coords - vec2(0, time * y0 * 10)) / 200,
     time / 5));
-  c *= 0.4 * exp(-(y0 - 0.72 + alphanoise) * 5);
+  c *= 0.4 * exp(-(y0 - limit + alphanoise) * 5);
   return c;
 }
