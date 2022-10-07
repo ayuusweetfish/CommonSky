@@ -53,6 +53,26 @@ table.sort(imgs, function (a, b)
   return a[2] * a[3] * a[4] * a[4] > b[2] * b[3] * b[4] * b[4]
 end)
 
+for i = 12, #imgs do
+  local img = imgs[i]
+  local anglecen = img[7]
+  -- Find a place with the largest centre angle difference
+  local bestidx, bestval = i, math.abs(anglecen - imgs[i - 1][7]) * 1.2
+  for j = i - 10, i - 1 do
+    local val = math.min(
+      math.abs(anglecen - imgs[j - 1][7]),
+      math.abs(anglecen - imgs[j][7]))
+    if val > bestval then
+      bestidx, bestval = j, val
+    end
+  end
+  print(i, bestidx, bestval * 180 / math.pi)
+  if bestidx ~= i then
+    for j = i - 1, bestidx, -1 do imgs[j + 1] = imgs[j] end
+    imgs[bestidx] = img
+  end
+end
+
 local T = 0
 
 local update = function ()
@@ -83,7 +103,7 @@ local lastfrozen = 0
 local canvasupper = love.graphics.newCanvas()
 
 local freezeafter = 5.5
-local enterinterval = 0.3
+local enterinterval = 0.25
 
 local scenestarttime = 2
 local keepmovedowntime = 2.5
