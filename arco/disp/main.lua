@@ -83,11 +83,13 @@ local lastfrozen = 0
 local canvasupper = love.graphics.newCanvas()
 
 local freezeafter = 5.5
-local enterinterval = 0.4
+local enterinterval = 0.3
 
+local scenestarttime = 2
+local keepmovedowntime = 2.5
 local expandtime = enterinterval * #imgs + freezeafter
 local moveuptime = 2
-local totaltime = 240 * (expandtime + moveuptime)
+local totaltime = 240 * (scenestarttime + expandtime + moveuptime)
 
 local logstats = function ()
   local stats = love.graphics.getStats()
@@ -163,9 +165,9 @@ local drawarco = function (moveuprate)
   local skyalpha = math.max(0, math.min(1, (fadeprogr - 0.2) / 0.3))
   local skyorange = math.max(0, math.min(1, (0.8 - fadeprogr) / 0.3))
   local skyr, skyg, skyb = 0.94, 0.96 - skyorange * 0.1, 1.0 - skyorange * 0.5
-  love.graphics.setColor(skyr, skyg, skyb, skyalpha)
+  love.graphics.setColor(skyr, skyg, skyb, skyalpha * (1 - moveuprate))
   love.graphics.draw(skygradient, 0, offy, 0, W, arcoy * 1.05)
-  love.graphics.setColor(skyr, skyg, skyb, skyorange * skyalpha * skyalpha)
+  love.graphics.setColor(skyr, skyg, skyb, skyorange * skyalpha * skyalpha * (1 - moveuprate))
   love.graphics.draw(skyhgradient, 0, offy, 0, W, arcoy)
   love.graphics.setColor(0.03, 0.15, 0.3, math.sqrt((math.cos(fadeprogr * math.pi * 2) + 1) / 2))
   love.graphics.draw(watergradient, 0, offy + arcoy, 0, W, H - arcoy)
@@ -194,7 +196,7 @@ local drawarco = function (moveuprate)
     imgshader:send('tex_dims', {iw * isc, ih * isc})
     -- Unexpectedly generates subtle textures!!
     imgshader:send('seed', {i * 2000, i * 4000})
-    imgshader:send('time', T / 240 - i * enterinterval)
+    imgshader:send('time', T / 240 - scenestarttime - i * enterinterval)
     imgshader:send('angle_cen', -ianglecen)
     imgshader:send('angle_span', ianglespan)
     love.graphics.draw(img,
@@ -213,7 +215,7 @@ local drawarco = function (moveuprate)
   do
     drawimg(i, false)
   end
-  local frozen = math.floor((T / 240 - freezeafter) / enterinterval)
+  local frozen = math.floor((T / 240 - scenestarttime - freezeafter) / enterinterval)
   if frozen > lastfrozen and frozen <= #imgs then
     love.graphics.setBlendMode('alpha')
     love.graphics.setCanvas(canvasfrozen)
@@ -228,7 +230,7 @@ local drawarco = function (moveuprate)
   love.graphics.setShader(watershader)
   watershader:send('screenoffs', offy)
   watershader:send('time', T / 240)
-  watershader:send('texdevrate', math.exp(-(T / totaltime)))
+  watershader:send('texdevrate', math.exp(-((T / 240 - scenestarttime) / expandtime)))
   love.graphics.setColor(1, 1, 1)
   love.graphics.draw(canvasupper, 0, 0)
 end
@@ -236,14 +238,20 @@ end
 local draw = function ()
   local moveuprate = 0
   local t = T / 240
-  if t >= expandtime then
-    local x = math.min(1, (t - expandtime) / moveuptime)
+  if t >= scenestarttime + expandtime then
+    local x = math.min(1, (t - (scenestarttime + expandtime)) / moveuptime)
     if x < 0.5 then
       x = x * x * x * 4
     else
       x = 1 - (1 - x) * (1 - x) * (1 - x) * 4
     end
     moveuprate = x
+  elseif t < scenestarttime + keepmovedowntime then
+    if t <= 1 then moveuprate = 1
+    else
+      local x = (t - 1) / (scenestarttime + keepmovedowntime - 1)
+      moveuprate = math.exp(-5 * x) * (1 - x)
+    end
   end
   drawarco(moveuprate)
 end
