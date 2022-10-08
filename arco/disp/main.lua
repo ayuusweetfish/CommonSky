@@ -133,32 +133,12 @@ local gradient = function (horiz, points)
   return love.graphics.newMesh(verts, 'strip', 'static')
 end
 
-local skygradient = gradient(false, {
-  0.00, 0.0,
-  0.66, 0.3,
-  0.95, 0.7,
-  1.00, 0.0,
-})
-local skyhgradient = gradient(true, {
-  0.00, 0.0,
-  0.25, 0.3,
-  0.40, 0.6,
-  0.60, 0.6,
-  0.75, 0.3,
-  1.00, 0.0,
-})
-local watergradient = gradient(false, {
-  0.00, 0.0,
-  0.25, 0.1,
-  1.00, 0.2,
-})
-
 local drawarco = function (moveuprate)
   local offy = moveuprate * canvasheadroom
   local time = T / 240 - scenestarttime
   if time > 0 then
     time = time - expandtimeoffs +
-      -- (expandtimeoffs * expandtimeoffs) / (time + expandtimeoffs);
+      -- (expandtimeoffs * expandtimeoffs) / (time + expandtimeoffs)
       expandtimeoffs * math.exp(-time / expandtimeoffs)
   end
 
@@ -183,21 +163,29 @@ local drawarco = function (moveuprate)
   end
   love.graphics.setCanvas(nil)
   love.graphics.setShader(skybgshader)
-  skybgshader:send('c', {skytint(math.max(0, fadeprogr))})
-  love.graphics.setBlendMode('alpha')
-  love.graphics.rectangle('fill', 0, 0, W, H)
-
-  love.graphics.setShader(nil)
-  love.graphics.setBlendMode('alpha')
-  local skyalpha = math.max(0, math.min(1, (fadeprogr - 0.2) / 0.3))
+  love.graphics.setBlendMode('replace')
+  local baser, baseg, baseb = skytint(math.max(0, fadeprogr))
+  skybgshader:send('offy', offy)
+  skybgshader:send('base', {baser, baseg, baseb})
+  local skyamt = math.max(0, math.min(1, (fadeprogr - 0.2) / 0.3))
   local skyorange = math.max(0, math.min(1, (0.8 - fadeprogr) / 0.3))
-  local skyr, skyg, skyb = 0.94, 0.96 - skyorange * 0.1, 1.0 - skyorange * 0.5
-  love.graphics.setColor(skyr, skyg, skyb, skyalpha * (1 - moveuprate))
-  love.graphics.draw(skygradient, 0, offy, 0, W, arcoy * 1.05)
-  love.graphics.setColor(skyr, skyg, skyb, skyorange * skyalpha * skyalpha * (1 - moveuprate))
-  love.graphics.draw(skyhgradient, 0, offy, 0, W, arcoy)
-  love.graphics.setColor(0.03, 0.15, 0.3, math.sqrt((math.cos(fadeprogr * math.pi * 2) + 1) / 2))
-  love.graphics.draw(watergradient, 0, offy + arcoy, 0, W, H - arcoy)
+  skybgshader:send('highlight', {
+    0.94, 0.96 - skyorange * 0.1, 1.0 - skyorange * 0.5
+  })
+  skybgshader:send('highlightAmt', skyamt * (1 - moveuprate))
+  skybgshader:send('sunsetAmt', skyorange)
+  local wateramt = math.sqrt((math.cos(fadeprogr * math.pi * 2) + 1) / 2)
+  if fadeprogr <= 0.3 then
+    wateramt = wateramt + (1 - wateramt) * (1 - fadeprogr / 0.3)
+  elseif fadeprogr >= 0.7 then
+    wateramt = wateramt * (1 - (fadeprogr - 0.7) / 0.3 * 0.3)
+  end
+  skybgshader:send('water', {
+    0.03 * wateramt + baser * (1 - wateramt),
+    0.15 * wateramt + baseg * (1 - wateramt),
+    0.30 * wateramt + baseb * (1 - wateramt),
+  })
+  love.graphics.rectangle('fill', 0, 0, W, H)
 
   love.graphics.setColor(1, 1, 1)
   love.graphics.setBlendMode('alpha', 'premultiplied')
@@ -258,7 +246,6 @@ local drawarco = function (moveuprate)
   watershader:send('screenoffs', offy)
   watershader:send('time', time)
   watershader:send('texdevrate', math.exp(-(time / expandtime)))
-  love.graphics.setColor(1, 1, 1)
   love.graphics.draw(canvasupper, 0, 0)
 end
 
