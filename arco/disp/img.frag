@@ -126,7 +126,10 @@ vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords) {
     // Angle proximity
     float outanglerate = 1 - smoothstep(
       angle_span, angle_span + 0.1, abs(angle_cen - arcoangle));
-    noiserate *= lerp(erosion, 1, 0.12 + min(arcorate, outanglerate) * 0.88);
+    // Noise rate w.r.t. minimum
+    float noiseratemin = lerp(exp(-arcodist / 300), 0.06, 0.12);
+    noiserate *= lerp(erosion, 1,
+      noiseratemin + min(arcorate, outanglerate) * (1 - noiseratemin));
   }
   // Clamp angle
   noiserate *= clamp(-arcoangle / 0.03 + 1, 0, 1);
