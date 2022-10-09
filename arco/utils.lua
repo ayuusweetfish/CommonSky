@@ -86,36 +86,48 @@ local saveannots = function (path, annot, annotlist)
 end
 
 -- Load saved annotations
--- On new images, run:
--- find . \( -name "*.jpg" -o -name "*.jpeg" -o -name "*.png" \) -exec basename {} \; >> annot.txt
 -- Returns annot, annotlist
-local loadannots = function (path)
+-- If imgdir is nil, new images will not be added automatically.
+-- Run the following after adding new images:
+-- find . \( -name "*.jpg" -o -name "*.jpeg" -o -name "*.JPG" -o -name "*.png" \) -exec basename {} \; >> annot.txt
+local loadannots = function (path, imgdir)
   local annot = {}
   local annotlist = {}
   local f = io.open(path, 'r')
-  while true do
-    local s = f:read('*l')
-    if s == nil then break end
-    local index = s:find('\t')
-    if index ~= nil then
-      local name = s:sub(1, index - 1)
-      local anchors = {}
-      while index ~= nil do
-        local nextindex1 = s:find('\t', index + 1)
-        local nextindex2 = s:find('\t', nextindex1 + 1)
-        local x = tonumber(s:sub(index + 1, nextindex1 - 1))
-        local y = tonumber(s:sub(nextindex1 + 1, (nextindex2 or 0) - 1))
-        anchors[#anchors + 1] = {x, y}
-        index = nextindex2
+  if f ~= nil then
+    while true do
+      local s = f:read('*l')
+      if s == nil then break end
+      local index = s:find('\t')
+      if index ~= nil then
+        local name = s:sub(1, index - 1)
+        local anchors = {}
+        while index ~= nil do
+          local nextindex1 = s:find('\t', index + 1)
+          local nextindex2 = s:find('\t', nextindex1 + 1)
+          local x = tonumber(s:sub(index + 1, nextindex1 - 1))
+          local y = tonumber(s:sub(nextindex1 + 1, (nextindex2 or 0) - 1))
+          anchors[#anchors + 1] = {x, y}
+          index = nextindex2
+        end
+        annot[name] = anchors
+        annotlist[#annotlist + 1] = name
+      elseif annot[s] == nil then
+        annot[s] = {}
+        annotlist[#annotlist + 1] = s
       end
-      annot[name] = anchors
-      annotlist[#annotlist + 1] = name
-    elseif annot[s] == nil then
-      annot[s] = {}
-      annotlist[#annotlist + 1] = s
+    end
+    f:close()
+  end
+  -- List images automatically if asked to
+  if imgdir ~= nil then
+    for _, name in ipairs(love.filesystem.getDirectoryItems(imgdir)) do
+      if annot[name] == nil then
+        annot[name] = {}
+        annotlist[#annotlist + 1] = name
+      end
     end
   end
-  f:close()
   saveannots(path, annot, annotlist)
   return annot, annotlist
 end
