@@ -15,6 +15,7 @@ void fb_size_changed(GLFWwindow *window, int w, int h)
 }
 
 draw_state st;
+GLuint cubemap[6];
 
 static inline char *read_all(const char *path)
 {
@@ -44,6 +45,15 @@ void setup()
     -1.0, -1.0,  1.0, -1.0,  1.0,  1.0,
   };
   state_buffer(&st, 6, fullscreen_coords);
+
+  for (int i = 0; i < 6; i++) {
+    cubemap[i] = texture_new();
+    char s[64];
+    sprintf(s, "cubemap/%d.png", i);
+    texture_loadfile(cubemap[i], s);
+    sprintf(s, "cubemap[%d]", i);
+    state_uniform1i(st, s, i);
+  }
 }
 
 double view_ra = 0, view_dec = 0;
@@ -73,7 +83,7 @@ void draw()
   float ra = view_ra * (M_PI/180);
   float dec = view_dec * (M_PI/180);
   state_uniform2f(st, "viewCoord", ra, dec);
-  // state_uniform3f(st, "viewCen", cos(dec) * cos(ra), cos(dec) * sin(ra), sin(dec));
+  for (int i = 0; i < 6; i++) texture_bind(cubemap[i], i);
   state_draw(st);
 }
 

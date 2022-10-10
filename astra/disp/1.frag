@@ -6,6 +6,8 @@ uniform vec2 viewCoord;
 // uniform vec3 viewCen;
 uniform vec3 camRight;
 
+uniform sampler2D cubemap[6];
+
 const float pi = acos(-1);
 const vec3 camUp = vec3(0, 0, 1);
 const float projCircleR = 3;
@@ -31,5 +33,27 @@ void main() {
   vec3 lookAt = normalize(vec3(p * 2, -1 + dot(p, p)));
   lookAt = rot(lookAt, vec3(1, 0, 0), viewCoord.y + pi / 2);
   lookAt = rot(lookAt, vec3(0, 0, 1), -viewCoord.x);
-  fragColor = vec4((lookAt + 1) / 2, 1);
+
+  float absx = abs(lookAt.x);
+  float absy = abs(lookAt.y);
+  float absz = abs(lookAt.z);
+  float absmax = max(max(absx, absy), absz);
+  int texidx;
+  vec2 texcoord;
+  if (absmax == absx) {
+    texcoord.x = (lookAt.x > 0 ? -lookAt.z : lookAt.z);
+    texcoord.y = lookAt.y;
+    texidx = (lookAt.x > 0 ? 0 : 1);
+  } else if (absmax == absy) {
+    texcoord.x = lookAt.x;
+    texcoord.y = (lookAt.y > 0 ? -lookAt.z : lookAt.z);
+    texidx = (lookAt.y > 0 ? 2 : 3);
+  } else {
+    texcoord.x = (lookAt.z > 0 ? lookAt.x : -lookAt.x);
+    texcoord.y = lookAt.y;
+    texidx = (lookAt.z > 0 ? 4 : 5);
+  }
+  texcoord = (texcoord * vec2(1, -1) / absmax + 1) / 2;
+
+  fragColor = texture(cubemap[texidx], texcoord);
 }

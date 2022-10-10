@@ -1,6 +1,8 @@
 #ifndef GLWRAP_H
 #define GLWRAP_H
 
+#include "stb_image.h"
+
 #include <assert.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -52,6 +54,38 @@ static inline GLuint uniform_loc(GLuint id, const char *name) {
   return location;
 }
 
+// Texture
+
+static inline void texture_bind(GLuint id, int unit) {
+  glActiveTexture(GL_TEXTURE0 + unit);
+  glBindTexture(GL_TEXTURE_2D, id);
+}
+
+static inline GLuint texture_new() {
+  GLuint id;
+  glGenTextures(1, &id);
+  texture_bind(id, 0);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_MIRRORED_REPEAT);
+  return id;
+}
+
+static inline void texture_update(GLuint id, int w, int h, void *pix) {
+  texture_bind(id, 0);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pix);
+}
+
+static inline void texture_loadfile(GLuint id, const char *path) {
+  int w, h;
+  unsigned char *pix = stbi_load(path, &w, &h, NULL, 4);
+  texture_bind(id, 0);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pix);
+  stbi_image_free(pix);
+}
+
 // Draw state
 
 typedef struct draw_state {
@@ -93,6 +127,13 @@ void state_uniform3f(const draw_state s,
 ) {
   glUseProgram(s.prog);
   glUniform3f(uniform_loc(s.prog, name), v0, v1, v2);
+}
+
+void state_uniform1i(const draw_state s,
+  const char *name, int v0
+) {
+  glUseProgram(s.prog);
+  glUniform1i(uniform_loc(s.prog, name), v0);
 }
 
 void state_attr(const draw_state s,
