@@ -70,6 +70,7 @@ void draw()
 {
   glClearColor(0.8, 0.8, 0.82, 1);
   glClear(GL_COLOR_BUFFER_BIT);
+  glDisable(GL_CULL_FACE);
 
   state_uniform1f(st, "aspectRatio", (float)fb_w / fb_h);
   state_uniform2f(st, "viewCoord", view_ra, view_dec);

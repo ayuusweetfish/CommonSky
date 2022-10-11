@@ -36,8 +36,24 @@ static inline void state_shader_files(
 typedef struct { float x, y; } vec2;
 typedef struct { float x, y, z; } vec3;
 typedef struct { float x, y, z, w; } quat;
+static inline vec3 vec3_add(vec3 a, vec3 b) {
+  return (vec3){a.x + b.x, a.y + b.y, a.z + b.z};
+}
+static inline vec3 vec3_diff(vec3 a, vec3 b) {
+  return (vec3){a.x - b.x, a.y - b.y, a.z - b.z};
+}
+static inline vec3 vec3_mul(vec3 a, float k) {
+  return (vec3){a.x * k, a.y * k, a.z * k};
+}
 static inline float vec3_dot(vec3 a, vec3 b) {
   return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+static inline vec3 vec3_cross(vec3 a, vec3 b) {
+  return (vec3){
+    +(a.y * b.z - b.y * a.z),
+    -(a.x * b.z - b.x * a.z),
+    +(a.x * b.y - b.x * a.y),
+  };
 }
 static inline vec3 vec3_lerp(vec3 a, vec3 b, float t) {
   return (vec3){
@@ -48,13 +64,10 @@ static inline vec3 vec3_lerp(vec3 a, vec3 b, float t) {
 }
 static inline vec3 vec3_slerp(vec3 a, vec3 b, float t) {
   float o = acosf(vec3_dot(a, b));
-  float w1 = sinf((1 - t) * o) / sinf(o);
-  float w2 = sinf(t * o) / sinf(o);
-  return (vec3){
-    a.x * w1 + b.x * w2,
-    a.y * w1 + b.y * w2,
-    a.z * w1 + b.z * w2
-  };
+  return vec3_add(
+    vec3_mul(a, sinf((1 - t) * o) / sinf(o)),
+    vec3_mul(b, sinf(t * o) / sinf(o))
+  );
 }
 static inline vec3 vec3_normalize(vec3 a) {
   float norm = sqrtf(a.x * a.x + a.y * a.y + a.z * a.z);
