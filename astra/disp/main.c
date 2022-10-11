@@ -16,17 +16,13 @@ void fb_size_changed(GLFWwindow *window, int w, int h)
   glViewport(0, 0, w, h);
 }
 
-draw_state st;
+static draw_state st;
 GLuint cubemap[6];
 
 void setup()
 {
   st = state_new();
-  char *vs = read_all("1.vert");
-  char *fs = read_all("1.frag");
-  state_shader(&st, vs, fs);
-  free(vs);
-  free(fs);
+  state_shader_files(&st, "1.vert", "1.frag");
   st.stride = 2;
   state_attr(st, 0, 0, 2);
   const float fullscreen_coords[12] = {
@@ -43,9 +39,13 @@ void setup()
     sprintf(s, "cubemap[%d]", i);
     state_uniform1i(st, s, i);
   }
+
+  setup_constell();
 }
 
 static bool cursor_capt = true;
+
+static const float DEC_MAX = 88 * (M_PI/180);
 
 void update()
 {
@@ -58,10 +58,11 @@ void update()
   last_y = y;
   if (!cursor_capt) dx = dy = 0;
 
-  view_ra += dx * 0.2;
-  view_ra = fmod(view_ra + 360, 360);
-  view_dec -= dy * 0.2;
-  view_dec = (view_dec > 88 ? 88 : view_dec < -88 ? -88 : view_dec);
+  view_ra -= dx * 3.5e-3;
+  view_ra = fmod(view_ra + M_PI*2, M_PI*2);
+  view_dec -= dy * 3.5e-3;
+  view_dec = (view_dec > DEC_MAX ? DEC_MAX :
+    view_dec < -DEC_MAX ? -DEC_MAX : view_dec);
   // printf("%.4lf %.4lf\n", view_ra, view_dec);
 }
 
@@ -70,12 +71,12 @@ void draw()
   glClearColor(0.8, 0.8, 0.82, 1);
   glClear(GL_COLOR_BUFFER_BIT);
 
-  float ra = view_ra * (M_PI/180);
-  float dec = view_dec * (M_PI/180);
   state_uniform1f(st, "aspectRatio", (float)fb_w / fb_h);
-  state_uniform2f(st, "viewCoord", ra, dec);
+  state_uniform2f(st, "viewCoord", view_ra, view_dec);
   for (int i = 0; i < 6; i++) texture_bind(cubemap[i], i);
   state_draw(st);
+
+  draw_constell();
 }
 
 int main(int argc, char *argv[])

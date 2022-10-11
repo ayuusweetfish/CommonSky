@@ -94,7 +94,7 @@ typedef struct draw_state {
   int stride, elems;
 } draw_state;
 
-draw_state state_new() {
+static inline draw_state state_new() {
   draw_state s;
   glGenVertexArrays(1, &s.vao);
   glGenBuffers(1, &s.vbo);
@@ -103,47 +103,47 @@ draw_state state_new() {
   return s;
 }
 
-void state_bind(const draw_state s) {
+static inline void state_bind(const draw_state s) {
   glBindVertexArray(s.vao);
   glBindBuffer(GL_ARRAY_BUFFER, s.vbo);
 }
 
-void state_shader(draw_state *s,
+static inline void state_shader(draw_state *s,
   const char *vs, const char *fs
 ) {
   // TODO: Resource management
   s->prog = shader_program(vs, fs);
 }
 
-void state_uniform1f(const draw_state s,
+static inline void state_uniform1f(const draw_state s,
   const char *name, float v0
 ) {
   glUseProgram(s.prog);
   glUniform1f(uniform_loc(s.prog, name), v0);
 }
 
-void state_uniform2f(const draw_state s,
+static inline void state_uniform2f(const draw_state s,
   const char *name, float v0, float v1
 ) {
   glUseProgram(s.prog);
   glUniform2f(uniform_loc(s.prog, name), v0, v1);
 }
 
-void state_uniform3f(const draw_state s,
+static inline void state_uniform3f(const draw_state s,
   const char *name, float v0, float v1, float v2
 ) {
   glUseProgram(s.prog);
   glUniform3f(uniform_loc(s.prog, name), v0, v1, v2);
 }
 
-void state_uniform1i(const draw_state s,
+static inline void state_uniform1i(const draw_state s,
   const char *name, int v0
 ) {
   glUseProgram(s.prog);
   glUniform1i(uniform_loc(s.prog, name), v0);
 }
 
-void state_attr(const draw_state s,
+static inline void state_attr(const draw_state s,
   int id, int offset, int size
 ) {
   state_bind(s);
@@ -154,7 +154,7 @@ void state_attr(const draw_state s,
   );
 }
 
-void state_buffer(draw_state *s,
+static inline void state_buffer(draw_state *s,
   int n, const void *buf
 ) {
   state_bind(*s);
@@ -167,7 +167,7 @@ void state_buffer(draw_state *s,
   );
 }
 
-void state_draw(const draw_state s) {
+static inline void state_draw(const draw_state s) {
   state_bind(s);
   glUseProgram(s.prog);
   glDrawArrays(GL_TRIANGLES, 0, s.elems);

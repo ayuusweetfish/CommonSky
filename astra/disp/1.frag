@@ -33,7 +33,7 @@ void main() {
   vec2 p = fragPos / (projCircleR * vec2(1, aspectRatio));
   vec3 lookAt = normalize(vec3(p * 2, -1 + dot(p, p)));
   lookAt = rot(lookAt, vec3(1, 0, 0), viewCoord.y + pi / 2);
-  lookAt = rot(lookAt, vec3(0, 0, 1), -viewCoord.x);
+  lookAt = rot(lookAt, vec3(0, 0, 1), viewCoord.x - pi / 2);
 
   float absx = abs(lookAt.x);
   float absy = abs(lookAt.y);
