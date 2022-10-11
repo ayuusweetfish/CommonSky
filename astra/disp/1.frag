@@ -2,6 +2,7 @@
 in vec2 fragPos;
 out vec4 fragColor;
 
+uniform float aspectRatio;
 uniform vec2 viewCoord;
 // uniform vec3 viewCen;
 uniform vec3 camRight;
@@ -29,7 +30,7 @@ vec3 rot(vec3 v, vec3 axis, float angle) {
 }
 
 void main() {
-  vec2 p = fragPos / projCircleR; // TODO: Aspect ratio
+  vec2 p = fragPos / (projCircleR * vec2(1, aspectRatio));
   vec3 lookAt = normalize(vec3(p * 2, -1 + dot(p, p)));
   lookAt = rot(lookAt, vec3(1, 0, 0), viewCoord.y + pi / 2);
   lookAt = rot(lookAt, vec3(0, 0, 1), -viewCoord.x);

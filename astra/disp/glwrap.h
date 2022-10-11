@@ -115,6 +115,13 @@ void state_shader(draw_state *s,
   s->prog = shader_program(vs, fs);
 }
 
+void state_uniform1f(const draw_state s,
+  const char *name, float v0
+) {
+  glUseProgram(s.prog);
+  glUniform1f(uniform_loc(s.prog, name), v0);
+}
+
 void state_uniform2f(const draw_state s,
   const char *name, float v0, float v1
 ) {

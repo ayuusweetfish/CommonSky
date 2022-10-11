@@ -1,34 +1,23 @@
-#include "glad.h" // --profile="compatibility" --api="gl=3.2" --generator="c" --spec="gl" --local-files --extensions=""
-#include "GLFW/glfw3.h"
-
-#include "glwrap.h"
+#include "main.h"
 
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-GLFWwindow *window;
+int fb_w, fb_h;
+double view_ra = 0, view_dec = 0;
+
+static GLFWwindow *window;
 
 void fb_size_changed(GLFWwindow *window, int w, int h)
 {
+  fb_w = w;
+  fb_h = h;
   glViewport(0, 0, w, h);
 }
 
 draw_state st;
 GLuint cubemap[6];
-
-static inline char *read_all(const char *path)
-{
-  FILE *f = fopen(path, "r");
-  fseek(f, -1, SEEK_END);
-  size_t len = (size_t)ftell(f);
-  fseek(f, 0, SEEK_SET);
-  char *buf = (char *)malloc(len + 1);
-  fread(buf, len, 1, f);
-  fclose(f);
-  buf[len] = '\0';
-  return buf;
-}
 
 void setup()
 {
@@ -56,7 +45,7 @@ void setup()
   }
 }
 
-double view_ra = 0, view_dec = 0;
+static bool cursor_capt = true;
 
 void update()
 {
@@ -67,6 +56,7 @@ void update()
   double dy = (isnan(last_x) ? 0 : y - last_y);
   last_x = x;
   last_y = y;
+  if (!cursor_capt) dx = dy = 0;
 
   view_ra += dx * 0.2;
   view_ra = fmod(view_ra + 360, 360);
@@ -82,6 +72,7 @@ void draw()
 
   float ra = view_ra * (M_PI/180);
   float dec = view_dec * (M_PI/180);
+  state_uniform1f(st, "aspectRatio", (float)fb_w / fb_h);
   state_uniform2f(st, "viewCoord", ra, dec);
   for (int i = 0; i < 6; i++) texture_bind(cubemap[i], i);
   state_draw(st);
@@ -106,12 +97,16 @@ int main(int argc, char *argv[])
   gladLoadGL();
   glGetError();   // Clear previous error
 
+  glfwGetFramebufferSize(window, &fb_w, &fb_h);
+  fb_size_changed(window, fb_w, fb_h);
   glfwSetFramebufferSizeCallback(window, fb_size_changed);
   glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
   glfwSetInputMode(window, GLFW_STICKY_KEYS, GLFW_TRUE);
 
   setup();
   assert_gl();
+
+  bool cursor_k1 = false, cursor_k2 = false;
 
   double last_time = glfwGetTime();
   double cum_time = 0;
@@ -120,6 +115,18 @@ int main(int argc, char *argv[])
     glfwSwapBuffers(window);
     glfwPollEvents();
     if (glfwWindowShouldClose(window)) break;
+
+    bool k1 = (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS);
+    if (!cursor_k1 && k1) cursor_capt = !cursor_capt;
+    cursor_k1 = k1;
+    bool k2 = (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS);
+    if (cursor_capt && !cursor_k2 && k2) cursor_capt = false;
+    bool b1 = (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS);
+    if (!cursor_capt && b1) cursor_capt = true;
+    bool b2 = (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS);
+    if (cursor_capt && b2) cursor_capt = false;
+    glfwSetInputMode(window, GLFW_CURSOR,
+      cursor_capt ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
 
     double T = glfwGetTime();
     cum_time += (T - last_time);
