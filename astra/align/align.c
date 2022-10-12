@@ -1,4 +1,5 @@
-// gcc -o align -O2 align.c readfits.c polyfit.c -I ~/Downloads/raylib-4.2.0/src ~/Downloads/raylib-4.2.0/build/raylib/libraylib.a -framework OpenGL -framework Cocoa -framework IOKit -lcfitsio
+// gcc -o align -O2 align.c readfits.c polyfit.c constell.c -I ~/Downloads/raylib-4.2.0/src ~/Downloads/raylib-4.2.0/build/raylib/libraylib.a -framework OpenGL -framework Cocoa -framework IOKit -lcfitsio
+// ./align ../img-processed/32186236600_7605b3bdec_b{.png,.axy,.rdls,-indx.xyls,.corr,.wcs,.refi,.coeff}
 #include "raylib.h"
 
 #include <math.h>
@@ -11,6 +12,13 @@ double *read_fits_table(const char *path, const char **colnames, long *count);
 int read_fits_headers(const char *path, const char **keys, double *values);
 void polyfit(int n, double *u, double *v, double view_ra, double view_dec, int ord, double *o_coeff);
 void polyapply(int n, double *u, double view_ra, double view_dec, int ord, double *coeff);
+void constell_load();
+void constell_prepare(
+  int scrw, int scrh,
+  double ra_min, double ra_max,
+  double dec_min, double dec_max,
+  double view_ra, double view_dec, int ord, double *coeff);
+void constell_draw();
 
 // Image and scaling
 
@@ -245,6 +253,10 @@ void fit()
     }
   }
   polyapply(grid_dec_ngroups * GRID_SUBDIV, grid_dec_applied, view_ra, view_dec, ord, poly_coeff);
+
+  constell_prepare(scrw, scrh,
+    grid_ra_min, grid_ra_max, grid_dec_min, grid_dec_max,
+    view_ra, view_dec, ord, poly_coeff);
 }
 
 void update_and_draw()
@@ -435,6 +447,8 @@ void update_and_draw()
           grid_dec_applied[(i * GRID_SUBDIV + (j - 1)) * 2 + 1] * ih
         ), 2, Fade(GRAY, 0.5));
     }
+    // Constellations
+    constell_draw();
     // Image objects
     for (long i = 0; i < nr_axy && i < axy_limit; i++) {
       DrawRing(scale(axy_x(i), axy_y(i)),
@@ -555,6 +569,8 @@ int main(int argc, char *argv[])
     }
     fclose(fp_coeff);
   }
+
+  constell_load();
 
   while (!WindowShouldClose()) {
     update_and_draw();
