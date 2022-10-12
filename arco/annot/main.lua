@@ -90,16 +90,17 @@ end
 
 function love.mousereleased(x, y, button, istouch, presses)
   anchorsel = nil
-  saveannots(annotpath, annot, annotlist)
 end
 
 love.keyboard.setKeyRepeat(true)
 function love.keypressed(key, scancode, isrepeat)
   if key == 'left' or key == 'up' then
     selectedindex = (selectedindex + #annotlist - 2) % #annotlist + 1
+    saveannots(annotpath, annot, annotlist)
     updateimage()
   elseif key == 'right' or key == 'down' then
     selectedindex = selectedindex % #annotlist + 1
+    saveannots(annotpath, annot, annotlist)
     updateimage()
   end
 end
@@ -161,4 +162,8 @@ function love.draw()
   love.graphics.setColor(0, 0, 0)
   love.graphics.print(tostring(selectedindex) .. '/' .. tostring(#annotlist), 20, 18)
   love.graphics.print(name, 20, 36)
+end
+
+function love.quit()
+  saveannots(annotpath, annot, annotlist)
 end
