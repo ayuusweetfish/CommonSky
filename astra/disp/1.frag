@@ -23,13 +23,16 @@ vec3 rot(vec3 v, vec3 axis, float angle) {
   vec4 q = vec4(axis * sin(angle / 2), cos(angle / 2));
   return quat_rot(v, q).xyz;
 }
+vec3 look_at(vec2 fragPos) {
+  vec2 p = fragPos / (projCircleR * vec2(1, aspectRatio));
+  vec3 s = normalize(vec3(p * 2, -1 + dot(p, p)));
+  s = rot(s, vec3(1, 0, 0), viewCoord.y + pi / 2);
+  s = rot(s, vec3(0, 0, 1), viewCoord.x - pi / 2);
+  return s;
+}
 
 void main() {
-  vec2 p = fragPos / (projCircleR * vec2(1, aspectRatio));
-  vec3 lookAt = normalize(vec3(p * 2, -1 + dot(p, p)));
-  lookAt = rot(lookAt, vec3(1, 0, 0), viewCoord.y + pi / 2);
-  lookAt = rot(lookAt, vec3(0, 0, 1), viewCoord.x - pi / 2);
-
+  vec3 lookAt = look_at(fragPos);
   float absx = abs(lookAt.x);
   float absy = abs(lookAt.y);
   float absz = abs(lookAt.z);

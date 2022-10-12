@@ -106,6 +106,11 @@ static inline vec2 scr_pos(vec3 p) {
   return (vec2){px, py};
 }
 
+// collage.c
+
+void setup_collage();
+void draw_collage();
+
 // constellart.c
 
 void setup_constell();

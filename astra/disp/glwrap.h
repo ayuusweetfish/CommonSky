@@ -78,12 +78,14 @@ static inline void texture_update(GLuint id, int w, int h, void *pix) {
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pix);
 }
 
-static inline void texture_loadfile(GLuint id, const char *path) {
+static inline GLuint texture_loadfile(const char *path) {
   int w, h;
   unsigned char *pix = stbi_load(path, &w, &h, NULL, 4);
+  GLuint id = texture_new();
   texture_bind(id, 0);
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pix);
   stbi_image_free(pix);
+  return id;
 }
 
 // Draw state
@@ -120,6 +122,13 @@ static inline void state_uniform1f(const draw_state s,
 ) {
   glUseProgram(s.prog);
   glUniform1f(uniform_loc(s.prog, name), v0);
+}
+
+static inline void state_uniform2fv(const draw_state s,
+  const char *name, int n, float *v
+) {
+  glUseProgram(s.prog);
+  glUniform2fv(uniform_loc(s.prog, name), n, v);
 }
 
 static inline void state_uniform2f(const draw_state s,

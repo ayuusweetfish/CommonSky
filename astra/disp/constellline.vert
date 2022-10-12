@@ -25,6 +25,8 @@ vec3 scr_pos(vec3 s) {
   s = rot(s, vec3(1, 0, 0), -(viewCoord.y + pi / 2));
   vec2 p = s.xy / (1 - s.z);
   p *= (projCircleR * vec2(1, aspectRatio));
+  // s.z = -1 at the centre, s.z = +1 at the back
+  // A value of (s.z + 1) outside of [-1, 1] will be clipped
   return vec3(p, s.z + 1);
 }
 

@@ -32,14 +32,14 @@ void setup()
   state_buffer(&st, 6, fullscreen_coords);
 
   for (int i = 0; i < 6; i++) {
-    cubemap[i] = texture_new();
     char s[64];
     sprintf(s, "cubemap/%d.png", i);
-    texture_loadfile(cubemap[i], s);
+    cubemap[i] = texture_loadfile(s);
     sprintf(s, "cubemap[%d]", i);
     state_uniform1i(st, s, i);
   }
 
+  setup_collage();
   setup_constell();
 }
 
@@ -77,6 +77,7 @@ void draw()
   for (int i = 0; i < 6; i++) texture_bind(cubemap[i], i);
   state_draw(st);
 
+  draw_collage();
   draw_constell();
 }
 
