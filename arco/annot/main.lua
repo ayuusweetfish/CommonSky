@@ -127,8 +127,9 @@ if os.getenv('stats') ~= nil then
       end
     end
   end
+  local scale = math.max(1, math.max(unpack(hist)) / 80)
   for i = 0, 180 do
-    print(i, string.rep('#', hist[i]))
+    print(i, string.rep('#', math.floor(hist[i] / scale + 0.5)))
   end
 end
 

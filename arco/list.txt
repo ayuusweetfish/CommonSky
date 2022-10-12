@@ -42,6 +42,8 @@ pinterest: instagram rainbow
 pinterest: rainbow in Africa
 
 https://www.kaggle.com/datasets/fceb22ab5e1d5288200c0f3016ccd626276983ca1fe8705ae2c32f7064d719de?resource=download
+https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/M8JQCR
+
 https://news.dayoo.com/gzrbrmt/202111/18/158562_54116992.htm
 http://k.sina.com.cn/article_1893892941_70e2834d02000tu4h.html
 https://www.sohu.com/a/316166932_267106
@@ -57,6 +59,7 @@ https://www.sohu.com/a/412009327_403057
 http://tuchong.com/1111297/104257347/
 http://tuchong.com/3730997/101985090/
 https://www.sohu.com/a/478825643_120952561
+https://www.sohu.com/a/196616717_784720
 
 freepik: photo of rainbow in the sk
 
