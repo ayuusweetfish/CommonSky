@@ -48,6 +48,7 @@ static inline vec3 vec3_mul(vec3 a, float k) {
 static inline float vec3_dot(vec3 a, vec3 b) {
   return a.x * b.x + a.y * b.y + a.z * b.z;
 }
+static inline float vec3_norm(vec3 a) { return vec3_dot(a, a); }
 static inline vec3 vec3_cross(vec3 a, vec3 b) {
   return (vec3){
     +(a.y * b.z - b.y * a.z),
