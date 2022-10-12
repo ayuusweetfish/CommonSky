@@ -1,11 +1,74 @@
 #include "main.h"
 
+#include <assert.h>
+#include <stdio.h>
+
 static draw_state st;
+
+#define N_HIPPARCOS 120405
+static struct hip_record {
+  double ra, dec;
+  vec3 pos3;
+} hip[N_HIPPARCOS];
+
+#define N_CONSTELL 88
+#define N_LINES_TOTAL 676
+static int _constell_lines[N_LINES_TOTAL * 2];
+static struct constell {
+  char short_name[3];
+  int n_lines;
+  int *pts;
+} cons[N_CONSTELL];
+static int n_constell;
 
 void setup_constell()
 {
   st = state_new();
   state_shader_files(&st, "constellline.vert", "constellline.frag");
+
+  FILE *fp;
+
+  // Load HIP catalogue
+  fp = fopen("constell/hip2_j2000.dat", "r");
+  assert(fp != NULL);
+  int id;
+  double ra, dec;
+  while (fscanf(fp, "%d%lf%lf", &id, &ra, &dec) == 3) {
+    ra *= M_PI/180;
+    dec *= M_PI/180;
+    hip[id].ra = ra;
+    hip[id].dec = dec;
+    hip[id].pos3 = (vec3){
+      cos(dec) * cos(ra),
+      cos(dec) * sin(ra),
+      sin(dec)
+    };
+  }
+  fclose(fp);
+
+  // Load constellation lines
+  fp = fopen("constell/constellationship.fab", "r");
+  assert(fp != NULL);
+
+  int lines_ptr = 0;
+  n_constell = 0;
+  char short_name[8];
+  int n_lines;
+  while (fscanf(fp, "%s%d", short_name, &n_lines) == 2) {
+    memcpy(cons[n_constell].short_name, short_name, 3);
+    cons[n_constell].n_lines = n_lines;
+    cons[n_constell].pts = &_constell_lines[lines_ptr];
+    for (int i = 0; i < n_lines; i++)
+      fscanf(fp, "%d%d",
+        &cons[n_constell].pts[i * 2 + 0],
+        &cons[n_constell].pts[i * 2 + 1]);
+    lines_ptr += n_lines * 2;
+    n_constell++;
+  }
+  assert(n_constell <= N_CONSTELL && lines_ptr <= N_LINES_TOTAL * 2);
+  // printf("%d %d\n", n_constell, lines_ptr);
+
+  fclose(fp);
 }
 
 static inline vec3 sph_tan(vec3 a, vec3 b, float t)
@@ -17,25 +80,20 @@ static inline vec3 sph_tan(vec3 a, vec3 b, float t)
     vec3_mul(b, o * cosf(t * o) / sinf(o))
   );
   vec3 r = vec3_slerp(a, b, t);
-  return vec3_cross(d, r);
-  //return vec3_normalize(vec3_diff(b, a));
+  return vec3_normalize(vec3_cross(d, r));
 }
 
-void draw_constell()
+static int draw_line(vec3 p0, vec3 p1, float *a)
 {
-  vec3 p[2] = {{0, 1, 0.7}, {1, 0, 0}};
-  for (int i = 0; i < 2; i++) p[i] = vec3_normalize(p[i]);
-
-  const int N = 30;
-  st.stride = 2;
-  state_attr(st, 0, 0, 2);
-  float verts[N][6][2];
+  float o = acosf(vec3_dot(p0, p1));
+  int N = (o < 0.1 ? 2 : o < 0.2 ? 3 : 4);
+  int n = 0;
   for (int i = 0; i < N; i++) {
     vec2 s[6];
-    vec3 q1 = vec3_slerp(p[0], p[1], (float)i / (N - 1));
-    vec3 q2 = vec3_slerp(p[0], p[1], (float)(i + 1) / (N - 1));
-    vec3 t1 = vec3_mul(sph_tan(p[0], p[1], (float)i / (N - 1)), 0.01);
-    vec3 t2 = vec3_mul(sph_tan(p[0], p[1], (float)(i + 1) / (N - 1)), 0.01);
+    vec3 q1 = vec3_slerp(p0, p1, (float)i / N);
+    vec3 q2 = vec3_slerp(p0, p1, (float)(i + 1) / N);
+    vec3 t1 = vec3_mul(sph_tan(p0, p1, (float)i / N), 1e-3);
+    vec3 t2 = vec3_mul(sph_tan(p0, p1, (float)(i + 1) / N), 1e-3);
     s[0] = scr_pos(vec3_diff(q1, t1));
     s[1] = scr_pos(vec3_diff(q2, t2));
     s[2] = scr_pos(vec3_add(q1, t1));
@@ -43,11 +101,36 @@ void draw_constell()
     s[4] = s[2];
     s[5] = s[1];
     for (int j = 0; j < 6; j++) {
-      verts[i][j][0] = s[j].x;
-      verts[i][j][1] = s[j].y;
+      a[n++] = s[j].x;
+      a[n++] = s[j].y;
     }
   }
-  state_buffer(&st, N * 6, &verts[0][0][0]);
+  return n;
+}
 
+void draw_constell()
+{
+  vec3 p[2] = {{0, 1, 0.7}, {1, 0, 0}};
+  for (int i = 0; i < 2; i++) p[i] = vec3_normalize(p[i]);
+
+  st.stride = 2;
+  state_attr(st, 0, 0, 2);
+
+  static float verts[65536];
+
+  int verts_bufsz = 0;
+  // verts_bufsz += draw_line(p[0], p[1], verts);
+  for (int i = 0; i < n_constell; i++) {
+    for (int j = 0; j < cons[i].n_lines; j++)
+      verts_bufsz += draw_line(
+        hip[cons[i].pts[j * 2 + 0]].pos3,
+        hip[cons[i].pts[j * 2 + 1]].pos3,
+        verts + verts_bufsz);
+  }
+
+  state_buffer(&st, verts_bufsz, verts);
+
+  glEnable(GL_CULL_FACE);
   state_draw(st);
+  glDisable(GL_CULL_FACE);
 }
