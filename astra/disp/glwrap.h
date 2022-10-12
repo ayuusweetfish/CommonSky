@@ -152,6 +152,13 @@ static inline void state_uniform1i(const draw_state s,
   glUniform1i(uniform_loc(s.prog, name), v0);
 }
 
+static inline void state_uniform4x4f(const draw_state s,
+  const char *name, const float *v
+) {
+  glUseProgram(s.prog);
+  glUniformMatrix4fv(uniform_loc(s.prog, name), 1, GL_FALSE, v);
+}
+
 static inline void state_attr(const draw_state s,
   int id, int offset, int size
 ) {
