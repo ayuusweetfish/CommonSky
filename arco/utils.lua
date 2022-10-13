@@ -71,8 +71,8 @@ end
 -- Save annotations
 -- annot: name -> list of anchors
 -- annotlist: index -> name
-local saveannots = function (path, annot, annotlist)
-  local f = io.open(path, 'w')
+local saveannots = function (annotpath, annot, annotlist)
+  local f = io.open(annotpath, 'w')
   for i = 1, #annotlist do
     local name = annotlist[i]
     f:write(name)
@@ -90,10 +90,10 @@ end
 -- If imgdir is nil, new images will not be added automatically.
 -- Run the following after adding new images:
 -- find . \( -name "*.jpg" -o -name "*.jpeg" -o -name "*.JPG" -o -name "*.png" \) -exec basename {} \; >> annot.txt
-local loadannots = function (path, imgdir)
+local loadannots = function (annotpath, imgdir)
   local annot = {}
   local annotlist = {}
-  local f = io.open(path, 'r')
+  local f = io.open(annotpath, 'r')
   if f ~= nil then
     while true do
       local s = f:read('*l')
@@ -122,13 +122,17 @@ local loadannots = function (path, imgdir)
   -- List images automatically if asked to
   if imgdir ~= nil then
     for _, name in ipairs(love.filesystem.getDirectoryItems(imgdir)) do
-      if annot[name] == nil then
+      if (name:sub(-4):lower() == '.png' or
+          name:sub(-4):lower() == '.jpg' or
+          name:sub(-5):lower() == '.jpeg')
+        and annot[name] == nil
+      then
         annot[name] = {}
         annotlist[#annotlist + 1] = name
       end
     end
   end
-  saveannots(path, annot, annotlist)
+  saveannots(annotpath, annot, annotlist)
   return annot, annotlist
 end
 
