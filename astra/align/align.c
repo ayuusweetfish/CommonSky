@@ -14,11 +14,10 @@ void polyfit(int n, double *u, double *v, double view_ra, double view_dec, int o
 void polyapply(int n, double *u, double view_ra, double view_dec, int ord, double *coeff);
 void constell_load();
 void constell_prepare(
-  int scrw, int scrh,
   double ra_min, double ra_max,
   double dec_min, double dec_max,
   double view_ra, double view_dec, int ord, double *coeff);
-void constell_draw();
+void constell_draw(int iw, int ih, int scrw, int scrh, float sc, float offx, float offy);
 
 // Image and scaling
 
@@ -194,8 +193,8 @@ void fit()
     if (refi_axy_match[i] != -1) {
       u[n * 2 + 0] = cat_ra(refi_axy_match[i]);
       u[n * 2 + 1] = cat_dec(refi_axy_match[i]);
-      v[n * 2 + 0] = (axy_x(i) + 0.5) / iw;
-      v[n * 2 + 1] = (axy_y(i) + 0.5) / ih;
+      v[n * 2 + 0] = axy_x(i) / iw;
+      v[n * 2 + 1] = axy_y(i) / ih;
       n++;
     }
   }
@@ -254,7 +253,7 @@ void fit()
   }
   polyapply(grid_dec_ngroups * GRID_SUBDIV, grid_dec_applied, view_ra, view_dec, ord, poly_coeff);
 
-  constell_prepare(scrw, scrh,
+  constell_prepare(
     grid_ra_min, grid_ra_max, grid_dec_min, grid_dec_max,
     view_ra, view_dec, ord, poly_coeff);
 }
@@ -448,7 +447,7 @@ void update_and_draw()
         ), 2, Fade(GRAY, 0.5));
     }
     // Constellations
-    constell_draw();
+    constell_draw(iw, ih, scrw, scrh, sc, offx, offy);
     // Image objects
     for (long i = 0; i < nr_axy && i < axy_limit; i++) {
       DrawRing(scale(axy_x(i), axy_y(i)),

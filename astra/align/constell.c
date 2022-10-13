@@ -21,7 +21,6 @@ static size_t n_scrlines, cap_scrlines = 0;
 static const int SUBDIV = 4;
 
 void constell_prepare(
-  int scrw, int scrh,
   double ra_min, double ra_max,
   double dec_min, double dec_max,
   double view_ra, double view_dec, int ord, double *coeff)
@@ -58,19 +57,28 @@ void constell_prepare(
           scrlines = (Vector2 *)realloc(scrlines, sizeof(Vector2) * cap_scrlines);
         }
         for (int k = 0; k <= SUBDIV; k++)
-          scrlines[n_scrlines++] = (Vector2){u[k * 2 + 0] * scrw, u[k * 2 + 1] * scrh};
+          scrlines[n_scrlines++] = (Vector2){u[k * 2 + 0], u[k * 2 + 1]};
       }
     }
   }
   //printf("%zu %.4lf %.4lf\n", n_scrlines, scrlines[0].x, scrlines[0].y);
 }
 
-void constell_draw()
+void constell_draw(int iw, int ih, int scrw, int scrh, float sc, float offx, float offy)
 {
   // rlSetLineWidth(2);
   for (int i = 0; i < n_scrlines; i += (SUBDIV + 1)) {
     // DrawLineStrip(&scrlines[i], SUBDIV + 1, Fade(WHITE, 0.2));
-    for (int j = 0; j < SUBDIV; j++)
-      DrawLineEx(scrlines[i + j], scrlines[i + j + 1], 2, Fade(WHITE, 0.2));
+    for (int j = 0; j < SUBDIV; j++) {
+      Vector2 pA = (Vector2){
+        (scrlines[i + j + 0].x * iw - offx) * sc + scrw / 2,
+        (scrlines[i + j + 0].y * ih - offy) * sc + scrh / 2,
+      };
+      Vector2 pB = (Vector2){
+        (scrlines[i + j + 1].x * iw - offx) * sc + scrw / 2,
+        (scrlines[i + j + 1].y * ih - offy) * sc + scrh / 2,
+      };
+      DrawLineEx(pA, pB, 2, Fade(YELLOW, 0.2));
+    }
   }
 }
