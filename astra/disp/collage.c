@@ -175,7 +175,14 @@ static inline void mut(int *a)
   int n = n_imgs;
   int l = rand_next() % n, r = rand_next() % (n - 1);
   if (l == r) r = n - 1;
-  int t = a[l]; a[l] = a[r]; a[r] = t;
+  if (rand_next() % 2 == 0) {
+    int t = a[l]; a[l] = a[r]; a[r] = t;
+  } else {
+    int t = a[l];
+    if (l < r) for (int i = l + 1; i <= r; i++) a[i - 1] = a[i];
+    else for (int i = l - 1; i >= r; i--) a[i + 1] = a[i];
+    a[r] = t;
+  }
 }
 
 static inline int genome_cmp(const void *a, const void *b)
@@ -210,12 +217,21 @@ static inline void find_seq()
     }
   }
 
+  // Hash table for deduplication
+  #define HASH_SIZE 100003
+  typedef uint32_t hash_t;
+  static hash_t ht[HASH_SIZE];
+  memset(ht, -1, sizeof ht);
+
   const int N_ROUNDS = 1000;
-  const int N_POP = 300;
-  const int N_REP = 200;
-  char *_pop = (char *)malloc((N_POP + N_REP) * (sizeof(float) + sizeof(int) * n_imgs));
-  #define perm(_i) ((int *)(_pop + (_i) * (sizeof(float) + sizeof(int) * n_imgs) + sizeof(float)))
-  #define val(_i) (*(float *)(_pop + (_i) * (sizeof(float) + sizeof(int) * n_imgs)))
+  const int N_POP = 10000;
+  const int N_REP = 15000;
+  #define size (sizeof(float) + sizeof(int) * n_imgs + sizeof(hash_t))
+  char *_pop = (char *)malloc((N_POP + N_REP) * size);
+  #define start(_i) (_pop + (_i) * size)
+  #define perm(_i) ((int *)(_pop + (_i) * size + sizeof(float)))
+  #define val(_i) (*(float *)(_pop + (_i) * size))
+  #define hash(_i) (*(hash_t *)(_pop + (_i) * size + sizeof(float) + sizeof(int) * n_imgs))
 
   pmx_map = (int *)realloc(pmx_map, sizeof(int) * n_imgs);
 
@@ -227,8 +243,18 @@ static inline void find_seq()
       p[k] = j;
     }
     val(i) = eval_seq(p);
+    hash_t h = 0;
+    for (int k = 0; k < n_imgs; k++) h = h * n_imgs + perm(i)[k];
+    hash(i) = h;
   }
   for (int it = 0; it < N_ROUNDS; it++) {
+    // Add population to hash table
+    for (int i = 0; i < N_POP; i++) {
+      int id = hash(i) % HASH_SIZE;
+      while (ht[id] != -1) id = (id + 1) % HASH_SIZE;
+      ht[id] = hash(i);
+    }
+    // Offsprings
     for (int r = 0; r < N_REP; r++) {
       int i = rand_next() % N_POP;
       int j = rand_next() % (N_POP - 1);
@@ -236,23 +262,32 @@ static inline void find_seq()
       pmx(perm(i), perm(j), perm(N_POP + r));
       mut(perm(N_POP + r));
       val(N_POP + r) = eval_seq(perm(N_POP + r));
-    /*
-      for (int k = 0; k < n_imgs; k++) printf("%3d", perm(i)[k]); putchar('\n');
-      for (int k = 0; k < n_imgs; k++) printf("%3d", perm(j)[k]); putchar('\n');
-      for (int k = 0; k < n_imgs; k++) printf("%3d", perm(N_POP + r)[k]); putchar('\n');
-      puts("===");
-    */
+      // Deduplicate
+      hash_t h = 0;
+      for (int k = 0; k < n_imgs; k++) h = h * n_imgs + perm(N_POP + r)[k];
+      hash(N_POP + r) = h;
+      int id = h % HASH_SIZE;
+      int dup = 0;
+      for (int id = h % HASH_SIZE; ht[id] != -1; id = (id + 1) % HASH_SIZE)
+        if (ht[id] == h) { dup++; if (dup >= 8) break; }
+      if (dup && rand_next() % (1 << (dup * 2)) != 0) { r--; continue; }
     }
-    qsort(_pop, N_POP + N_REP, (sizeof(float) + sizeof(int) * n_imgs), genome_cmp);
+    qsort(_pop, N_POP + N_REP, size, genome_cmp);
     for (int i = 0; i < 5; i++) {
-      printf("%9.0f |", val(i));
+      printf("%9.5f |", val(i));
       for (int k = 0; k < n_imgs; k++) printf("%3d", perm(i)[k]); putchar('\n');
     }
     puts("===");
+    // Remove population from hash table
+    for (int i = 0; i < N_POP; i++) {
+      int id = hash(i) % HASH_SIZE;
+      while (ht[id] != -1) { ht[id] = -1; id = (id + 1) % HASH_SIZE; }
+    }
   }
 
   memcpy(seq, perm(0), sizeof(int) * n_imgs);
 
+  #undef start
   #undef perm
   #undef val
   free(_pop);
