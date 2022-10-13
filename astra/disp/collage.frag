@@ -53,6 +53,7 @@ void main() {
   texCoord += coeff[3] * y2;
   texCoord += coeff[4] * u.x * u.y;
   texCoord += coeff[5] * x2;
+  if (texCoord.x < 0 || texCoord.x > 1 || texCoord.y < 0 || texCoord.y > 1) discard;
   if (ord >= 3) {
     float x3 = x2 * u.x;
     float y3 = y2 * u.y;
@@ -60,6 +61,7 @@ void main() {
     texCoord += coeff[7] * y2 * u.x;
     texCoord += coeff[8] * u.y * x2;
     texCoord += coeff[9] * x3;
+    if (texCoord.x < 0 || texCoord.x > 1 || texCoord.y < 0 || texCoord.y > 1) discard;
     if (ord >= 4) {
       float x4 = x3 * u.x;
       float y4 = y3 * u.y;
@@ -68,6 +70,7 @@ void main() {
       texCoord += coeff[12] * y2 * x2;
       texCoord += coeff[13] * u.y * x3;
       texCoord += coeff[14] * x4;
+      if (texCoord.x < 0 || texCoord.x > 1 || texCoord.y < 0 || texCoord.y > 1) discard;
       if (ord >= 5) {
         float x5 = x4 * u.x;
         float y5 = y4 * u.y;
@@ -77,6 +80,7 @@ void main() {
         texCoord += coeff[18] * y2 * x3;
         texCoord += coeff[19] * u.y * x4;
         texCoord += coeff[20] * x5;
+        if (texCoord.x < 0 || texCoord.x > 1 || texCoord.y < 0 || texCoord.y > 1) discard;
         if (ord >= 6) {
           float x6 = x5 * u.x;
           float y6 = y5 * u.y;
@@ -87,19 +91,12 @@ void main() {
           texCoord += coeff[25] * y2 * x4;
           texCoord += coeff[26] * u.y * x5;
           texCoord += coeff[27] * x6;
+          if (texCoord.x < 0 || texCoord.x > 1 || texCoord.y < 0 || texCoord.y > 1) discard;
         }
       }
     }
   }
 
   // Sample texture
-  if (texCoord.x < 0 || texCoord.x > 1 ||
-      texCoord.y < 0 || texCoord.y > 1) {
-    //fragColor = vec4(s, 0.5);
-    discard;
-  } else {
-    fragColor = texture(image, texCoord);
-    //fragColor = vec4(texCoord.xy, 0, 1);
-  }
-  //fragColor = vec4((u.xy + 1) / 2, 0, 0.95);
+  fragColor = texture(image, texCoord);
 }

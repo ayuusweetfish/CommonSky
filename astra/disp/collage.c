@@ -62,7 +62,7 @@ void setup_collage()
 
       free(coeff_file);
       free(img_file);
-      if (n_imgs >= 16) break;
+      //if (n_imgs >= 16) break;
     }
   }
 
@@ -83,8 +83,8 @@ void draw_collage()
   state_uniform1f(st, "aspectRatio", (float)fb_w / fb_h);
   state_uniform2f(st, "viewCoord", view_ra, view_dec);
   static int T = 0, start = 0;
-  if (++T == 20) { start = (start + 1) % n_imgs; T = 0; }
-  for (int _i = 0; _i < n_imgs; _i++) {
+  if (++T == 8) { start = (start + 1) % n_imgs; T = 0; }
+  for (int _i = 0; _i < 10; _i++) {
     int i = (_i + start) % n_imgs;
     int n_coeffs = (imgs[i].order + 1) * (imgs[i].order + 2);
     state_uniform2f(st, "projCen", imgs[i].c_ra, imgs[i].c_dec);
