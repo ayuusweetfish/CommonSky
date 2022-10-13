@@ -16,6 +16,8 @@ typedef struct collage_img {
 collage_img *imgs = NULL;
 size_t n_imgs = 0, cap_imgs = 0;
 
+static vec3 *imgpos;
+
 static int *seq;
 static inline void find_seq();
 
@@ -55,6 +57,8 @@ void setup_collage()
       assert(fp != NULL);
       fscanf(fp, "%d%lf%lf", &imgs[n_imgs].order,
         &imgs[n_imgs].c_ra, &imgs[n_imgs].c_dec);
+      imgs[n_imgs].c_ra *= (M_PI / 180);
+      imgs[n_imgs].c_dec *= (M_PI / 180);
       int n_coeffs = (imgs[n_imgs].order + 1) * (imgs[n_imgs].order + 2);
       imgs[n_imgs].coeff = (float *)malloc(sizeof(float) * n_coeffs);
       for (int i = 0; i < n_coeffs; i++)
@@ -69,8 +73,22 @@ void setup_collage()
     }
   }
 
+  // 3D positions of images
+  imgpos = (vec3 *)malloc(sizeof(vec3) * n_imgs);
+  for (int i = 0; i < n_imgs; i++) {
+    imgpos[i] = (vec3){
+      cos(imgs[i].c_dec) * cos(imgs[i].c_ra),
+      cos(imgs[i].c_dec) * sin(imgs[i].c_ra),
+      sin(imgs[i].c_dec)
+    };
+  }
+
   // Order
   find_seq();
+  for (int i = 0; i < n_imgs; i++) {
+    int j = seq[i];
+    printf("%d %.4lf %.4lf\n", j, imgs[j].c_ra, imgs[j].c_dec);
+  }
   // exit(0);
 
   // Entire screen
@@ -90,9 +108,9 @@ void draw_collage()
   state_uniform1f(st, "aspectRatio", (float)fb_w / fb_h);
   state_uniform2f(st, "viewCoord", view_ra, view_dec);
   static int T = 0, start = 0;
-  if (++T == 8) { start = (start + 1) % n_imgs; T = 0; }
+  if (++T == 8) { start = (start + 1) % n_imgs; T = 0; printf("%d\n", seq[start]); }
   for (int _i = 0; _i < 10; _i++) {
-    int i = seq[(_i + start) % n_imgs];
+    int i = seq[(start + n_imgs - 9 + _i) % n_imgs];
     int n_coeffs = (imgs[i].order + 1) * (imgs[i].order + 2);
     state_uniform2f(st, "projCen", imgs[i].c_ra, imgs[i].c_dec);
     state_uniform1i(st, "ord", imgs[i].order);
@@ -105,13 +123,44 @@ void draw_collage()
 
 // Sequence determination by genetic algorithm
 
-float *dist_scores = NULL;
+vec3 *tg_gc = NULL;
+/*
+static inline float sphere_angle(vec3 a, vec3 b, vec3 c)
+{
+  // The angle between the two great circles
+  // passing between A-B and A-C, respectively
+  // Equal to: arccos of dot product of derivatives of
+  // slerp(A, B, t) and slerp(A, C, t) at t = 0
+  float oAB = acosf(vec3_dot(a, b));
+  vec3 dAB = vec3_normalize(vec3_add(
+    vec3_mul(a, -oAB * cosf(oAB) / sinf(oAB)),
+    vec3_mul(b, oAB / sinf(oAB))));
+  float oAC = acosf(vec3_dot(a, c));
+  vec3 dAC = vec3_normalize(vec3_add(
+    vec3_mul(a, -oAC * cosf(oAC) / sinf(oAC)),
+    vec3_mul(c, oAC / sinf(oAC))));
+  return acosf(fabsf(vec3_dot(dAB, dAC)));
+}
+*/
+static inline float sphere_angle(int a, int b, int c)
+{
+  return acosf(fabsf(vec3_dot(
+    tg_gc[a * n_imgs + b],
+    tg_gc[a * n_imgs + c]
+  )));
+}
+
 static inline float eval_seq(int *seq)
 {
   float score = 0;
-  // for (int i = 0; i < n_imgs; i++) score += (n_imgs - i) * seq[i];
-  for (int i = 0; i < n_imgs - 1; i++)
-    score += dist_scores[seq[i] * n_imgs + seq[i + 1]];
+  for (int i = 2; i < n_imgs; i++)
+    // score -= sphere_angle(imgpos[seq[i - 2]], imgpos[seq[i - 1]], imgpos[seq[i]]);
+    score -= sphere_angle(seq[i - 2], seq[i - 1], seq[i]);
+  for (int i = 1; i < n_imgs; i++) {
+    float d = vec3_dist(imgpos[seq[i - 1]], imgpos[seq[i]]);
+    if (d < 0.5) score -= (0.5 - d);
+    else if (d > 2) score -= (d - 2);
+  }
   return score;
 }
 
@@ -200,20 +249,17 @@ static inline void find_seq()
 
   seq = (int *)malloc(sizeof(int) * n_imgs);
 
-  // Scores between pairs
-  dist_scores = (float *)realloc(dist_scores, sizeof(float) * n_imgs * n_imgs);
-  for (int i = 0; i < n_imgs - 1; i++) {
-    double xi = cos(imgs[i].c_dec) * cos(imgs[i].c_ra);
-    double yi = cos(imgs[i].c_dec) * sin(imgs[i].c_ra);
-    double zi = sin(imgs[i].c_dec);
-    for (int j = i + 1; j < n_imgs; j++) {
-      double xj = cos(imgs[j].c_dec) * cos(imgs[j].c_ra);
-      double yj = cos(imgs[j].c_dec) * sin(imgs[j].c_ra);
-      double zj = sin(imgs[j].c_dec);
-      double angle = acos(xi * xj + yi * yj + zi * zj);
-      float score = -angle;
-      dist_scores[i * n_imgs + j] =
-      dist_scores[j * n_imgs + i] = score;
+  // Tangent along great circles
+  tg_gc = (vec3 *)realloc(tg_gc, sizeof(vec3) * n_imgs * n_imgs);
+  for (int i = 0; i < n_imgs; i++) {
+    vec3 a = imgpos[i];
+    for (int j = 0; j < n_imgs; j++) {
+      vec3 b = imgpos[j];
+      float oAB = acosf(vec3_dot(a, b));
+      vec3 dAB = vec3_normalize(vec3_add(
+        vec3_mul(a, -oAB * cosf(oAB) / sinf(oAB)),
+        vec3_mul(b, oAB / sinf(oAB))));
+      tg_gc[i * n_imgs + j] = dAB;
     }
   }
 
