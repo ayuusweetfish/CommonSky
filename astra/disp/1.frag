@@ -3,7 +3,7 @@ in vec2 fragPos;
 out vec4 fragColor;
 
 uniform float aspectRatio;
-uniform vec2 viewCoord;
+uniform vec4 viewOri;
 
 uniform sampler2D cubemap[6];
 
@@ -17,7 +17,7 @@ vec4 quat_mul(vec4 p, vec4 q) {
   );
 }
 vec4 quat_rot(vec3 v, vec4 q) {
-  return quat_mul(quat_mul(q, vec4(v, 0)), vec4(q.xyz, -q.w));
+  return quat_mul(quat_mul(q, vec4(v, 0)), vec4(-q.xyz, q.w));
 }
 vec3 rot(vec3 v, vec3 axis, float angle) {
   vec4 q = vec4(axis * sin(angle / 2), cos(angle / 2));
@@ -26,9 +26,7 @@ vec3 rot(vec3 v, vec3 axis, float angle) {
 vec3 look_at(vec2 fragPos) {
   vec2 p = fragPos / (projCircleR * vec2(1, aspectRatio));
   vec3 s = normalize(vec3(p * 2, -1 + dot(p, p)));
-  s = rot(s, vec3(1, 0, 0), viewCoord.y + pi / 2);
-  s = rot(s, vec3(0, 0, 1), viewCoord.x - pi / 2);
-  return s;
+  return quat_rot(s, viewOri).xyz;
 }
 
 void main() {

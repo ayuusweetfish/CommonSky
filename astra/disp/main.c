@@ -1,3 +1,4 @@
+// gcc main.c constellart.c collage.c -Iglad glad.o -I../../arco/dedup stb.o -lglfw
 #include "main.h"
 
 #include <math.h>
@@ -6,6 +7,7 @@
 
 int fb_w, fb_h;
 double view_ra = 0, view_dec = 0;
+quat view_ori = (quat){0, 0, 0, 1};
 
 static GLFWwindow *window;
 
@@ -64,6 +66,19 @@ void update()
   view_dec = (view_dec > DEC_MAX ? DEC_MAX :
     view_dec < -DEC_MAX ? -DEC_MAX : view_dec);
   // printf("%.4lf %.4lf\n", view_ra, view_dec);
+  // Map from screen space to model space
+  // (0, 0, -1) maps to p
+  vec3 p = (vec3){
+    cos(view_dec) * cos(view_ra),
+    cos(view_dec) * sin(view_ra),
+    sin(view_dec)
+  };
+  vec3 u = (vec3){0, 0, 1};
+  // (0, 1, 0) maps to u
+  u = vec3_normalize(vec3_diff(u, vec3_mul(p, vec3_dot(u, p))));
+  // (1, 0, 0) maps to xto
+  vec3 xto = vec3_cross(p, u);
+  view_ori = rot_from_vecs(xto, u, vec3_mul(p, -1));
 }
 
 void draw()
@@ -73,7 +88,7 @@ void draw()
   glDisable(GL_CULL_FACE);
 
   state_uniform1f(st, "aspectRatio", (float)fb_w / fb_h);
-  state_uniform2f(st, "viewCoord", view_ra, view_dec);
+  state_uniform4f(st, "viewOri", view_ori.x, view_ori.y, view_ori.z, view_ori.w);
   for (int i = 0; i < 6; i++) texture_bind(cubemap[i], i);
   state_draw(st);
 

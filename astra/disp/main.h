@@ -10,6 +10,11 @@
 extern int fb_w, fb_h;
 extern double view_ra, view_dec;
 
+typedef struct { float x, y; } vec2;
+typedef struct { float x, y, z; } vec3;
+typedef struct { float x, y, z, w; } quat;
+extern quat view_ori;
+
 static inline char *read_all(const char *path)
 {
   FILE *f = fopen(path, "r");
@@ -33,9 +38,6 @@ static inline void state_shader_files(
   free(fs);
 }
 
-typedef struct { float x, y; } vec2;
-typedef struct { float x, y, z; } vec3;
-typedef struct { float x, y, z, w; } quat;
 static inline vec3 vec3_add(vec3 a, vec3 b) {
   return (vec3){a.x + b.x, a.y + b.y, a.z + b.z};
 }
@@ -85,6 +87,11 @@ static inline quat quat_mul(quat p, quat q) {
     p.w * q.w - (p.x * q.x + p.y * q.y + p.z * q.z)
   };
 }
+static inline vec3 rot_by_quat(vec3 v, quat q) {
+  quat r = quat_mul(quat_mul(q, (quat){v.x, v.y, v.z, 0}),
+    (quat){-q.x, -q.y, -q.z, q.w});
+  return (vec3){r.x, r.y, r.z};
+}
 static inline vec3 rot(vec3 v, vec3 axis, float angle) {
   quat q = (quat){
     axis.x * sinf(angle / 2),
@@ -92,9 +99,19 @@ static inline vec3 rot(vec3 v, vec3 axis, float angle) {
     axis.z * sinf(angle / 2),
     cosf(angle / 2)
   };
-  quat r = quat_mul(quat_mul(q, (quat){v.x, v.y, v.z, 0}),
-    (quat){q.x, q.y, q.z, -q.w});
-  return (vec3){r.x, r.y, r.z};
+  return rot_by_quat(v, q);
+}
+static inline quat rot_from_vecs(vec3 xto, vec3 yto, vec3 zto) {
+  float M[3][3] = {
+    {xto.x, yto.x, zto.x},
+    {xto.y, yto.y, zto.y},
+    {xto.z, yto.z, zto.z},
+  };
+  float w = sqrtf(1 + M[0][0] + M[1][1] + M[2][2]) / 2;
+  float x = (M[2][1] - M[1][2]) / (4 * w);
+  float y = (M[0][2] - M[2][0]) / (4 * w);
+  float z = (M[1][0] - M[0][1]) / (4 * w);
+  return (quat){x, y, z, w};
 }
 
 static inline vec2 scr_pos(vec3 p) {

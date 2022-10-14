@@ -112,7 +112,7 @@ void draw_collage()
   glEnable(GL_BLEND);
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   state_uniform1f(st, "aspectRatio", (float)fb_w / fb_h);
-  state_uniform2f(st, "viewCoord", view_ra, view_dec);
+  state_uniform4f(st, "viewOri", view_ori.x, view_ori.y, view_ori.z, view_ori.w);
   static int T = 0, start = 0;
   if (++T == 8) { start = (start + 1) % n_imgs; T = 0; printf("%d\n", seq[start]); }
   for (int _i = 0; _i < 10; _i++) {

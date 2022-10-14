@@ -145,6 +145,13 @@ static inline void state_uniform3f(const draw_state s,
   glUniform3f(uniform_loc(s.prog, name), v0, v1, v2);
 }
 
+static inline void state_uniform4f(const draw_state s,
+  const char *name, float v0, float v1, float v2, float v3
+) {
+  glUseProgram(s.prog);
+  glUniform4f(uniform_loc(s.prog, name), v0, v1, v2, v3);
+}
+
 static inline void state_uniform1i(const draw_state s,
   const char *name, int v0
 ) {
