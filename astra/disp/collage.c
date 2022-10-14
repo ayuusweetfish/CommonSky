@@ -131,7 +131,11 @@ void draw_collage()
 
 vec3 *tg_gc = NULL;
 float *dist_gc = NULL;
+// Cached scores
+// [i N^2 + i N + j]: dist_score(i, j)^2
+// [i N^2 + j N + k]: sphere_score(i, j, k)^2
 float *sphere_scores = NULL;
+
 static inline float dist_score(float o)
 {
   // A distance of zero contributes equally with a turn of 67.5 degrees
@@ -163,23 +167,9 @@ static inline float sphere_score(int a, int b, int c)
 
 static inline float eval_seq(int *seq)
 {
-/*
-  float score = 0;
-  float max = 0;
-  score += dist_score(dist_gc[seq[0] * n_imgs + seq[1]]);
-  for (int i = 2; i < n_imgs; i++) {
-    float cur = sphere_scores[(seq[i - 2] * n_imgs + seq[i - 1]) * n_imgs + seq[i]];
-    score += cur;
-    if (cur > max) max = cur;
-  }
-  return -(score + max);
-*/
-  float d1 = dist_score(dist_gc[seq[0] * n_imgs + seq[1]]);
-  float score = d1 * d1;
-  for (int i = 2; i < n_imgs; i++) {
-    float di = sphere_scores[(seq[i - 2] * n_imgs + seq[i - 1]) * n_imgs + seq[i]];
-    score += di * di;
-  }
+  float score = sphere_scores[seq[0] * (n_imgs + 1) * n_imgs + seq[1]];
+  for (int i = 2; i < n_imgs; i++)
+    score += sphere_scores[(seq[i - 2] * n_imgs + seq[i - 1]) * n_imgs + seq[i]];
   return -score;
 }
 
@@ -284,57 +274,40 @@ static inline void find_seq()
     }
   }
 
-/*
-  int a[] = {7,8,3,37,26,18,10,15,31,36,2,23,5,35,19,25,20,24,38,1,12,34,13,32,29,14,21,27,22,28,9,17,30,0,33,11,6,4,16};
-  for (int i = 0; i < n_imgs; i++) {
-    int j = a[i];
-    if (i < 2) {
-      printf("(%8.5f,%8.5f,%8.5f) %3d\n",
-        imgpos[j].x, imgpos[j].y, imgpos[j].z, j);
-    } else {
-      printf("(%8.5f,%8.5f,%8.5f) %3d %8.5f\n",
-        imgpos[j].x, imgpos[j].y, imgpos[j].z, j,
-        sphere_score(a[i - 2], a[i - 1], a[i]));
-    }
-  }
-  exit(0);
-*/
-/*
-  for (int i = 0; i < 4; i++)
-    for (int j = 0; j < 4; j++) if (j != i)
-      for (int k = 0; k < 4; k++) if (k != i && k != j) {
-        printf("[%d] %8.5f,%8.5f,%8.5f - [%d] %8.5f,%8.5f,%8.5f - [%d] %8.5f,%8.5f,%8.5f\n",
-          i, imgpos[i].x, imgpos[i].y, imgpos[i].z,
-          j, imgpos[j].x, imgpos[j].y, imgpos[j].z,
-          k, imgpos[k].x, imgpos[k].y, imgpos[k].z);
-        printf("%.6f\n", sphere_score(i, j, k));
-      }
-  exit(0);
-*/
   sphere_scores = (float *)realloc(sphere_scores,
     sizeof(float) * n_imgs * n_imgs * n_imgs);
   for (int i = 0; i < n_imgs; i++)
-    for (int j = 0; j < n_imgs; j++) if (j != i)
+    for (int j = 0; j < n_imgs; j++) if (j != i) {
+      float s2 = dist_score(dist_gc[i * n_imgs + j]);
+      sphere_scores[(i * n_imgs + i) * n_imgs + j] = s2 * s2;
       for (int k = 0; k < n_imgs; k++) if (k != i && k != j) {
-        sphere_scores[(i * n_imgs + j) * n_imgs + k] =
-          sphere_score(i, j, k);
+        float s3 = sphere_score(i, j, k);
+        sphere_scores[(i * n_imgs + j) * n_imgs + k] = s3 * s3;
       }
+    }
 
+#define DEDUP 0
+#if DEDUP
   // Hash table for deduplication
   #define HASH_SIZE 100003
   typedef uint32_t hash_t;
   static hash_t ht[HASH_SIZE];
   memset(ht, -1, sizeof ht);
+#endif
 
   const int N_ROUNDS = 1000;
   const int N_POP = 10000;
   const int N_REP = 15000;
+#if DEDUP
   #define size (sizeof(float) + sizeof(int) * n_imgs + sizeof(hash_t))
-  char *_pop = (char *)malloc((N_POP + N_REP) * size);
+  #define hash(_i) (*(hash_t *)(_pop + (_i) * size + sizeof(float) + sizeof(int) * n_imgs))
+#else
+  #define size (sizeof(float) + sizeof(int) * n_imgs)
+#endif
   #define start(_i) (_pop + (_i) * size)
   #define perm(_i) ((int *)(_pop + (_i) * size + sizeof(float)))
   #define val(_i) (*(float *)(_pop + (_i) * size))
-  #define hash(_i) (*(hash_t *)(_pop + (_i) * size + sizeof(float) + sizeof(int) * n_imgs))
+  char *_pop = (char *)malloc((N_POP + N_REP) * size);
 
   pmx_map = (int *)realloc(pmx_map, sizeof(int) * n_imgs);
 
@@ -346,17 +319,21 @@ static inline void find_seq()
       p[k] = j;
     }
     val(i) = eval_seq(p);
+  #if DEDUP
     hash_t h = 0;
     for (int k = 0; k < n_imgs; k++) h = h * n_imgs + perm(i)[k];
     hash(i) = h;
+  #endif
   }
   for (int it = 0; it < N_ROUNDS; it++) {
+  #if DEDUP
     // Add population to hash table
     for (int i = 0; i < N_POP; i++) {
       int id = hash(i) % HASH_SIZE;
       while (ht[id] != -1) id = (id + 1) % HASH_SIZE;
       ht[id] = hash(i);
     }
+  #endif
     // Offsprings
     for (int r = 0; r < N_REP; r++) {
       int i = rand_next() % N_POP;
@@ -365,6 +342,7 @@ static inline void find_seq()
       pmx(perm(i), perm(j), perm(N_POP + r));
       mut(perm(N_POP + r));
       val(N_POP + r) = eval_seq(perm(N_POP + r));
+    #if DEDUP
       // Deduplicate
       hash_t h = 0;
       for (int k = 0; k < n_imgs; k++) h = h * n_imgs + perm(N_POP + r)[k];
@@ -374,18 +352,23 @@ static inline void find_seq()
       for (int id = h % HASH_SIZE; ht[id] != -1; id = (id + 1) % HASH_SIZE)
         if (ht[id] == h) { dup++; if (dup >= 8) break; }
       if (dup && rand_next() % (1 << (dup * 2)) != 0) { r--; continue; }
+    #endif
     }
     qsort(_pop, N_POP + N_REP, size, genome_cmp);
-    for (int i = 0; i < 5; i++) {
-      printf("%9.5f |", val(i));
-      for (int k = 0; k < n_imgs; k++) printf("%3d", perm(i)[k]); putchar('\n');
+    if ((it + 1) * 100 / N_ROUNDS != it * 100 / N_ROUNDS) {
+      printf("== It. %d ==\n", it + 1);
+      for (int i = 0; i < 5; i++) {
+        printf("%9.5f |", val(i));
+        for (int k = 0; k < n_imgs; k++) printf("%3d", perm(i)[k]); putchar('\n');
+      }
     }
-    puts("===");
+  #if DEDUP
     // Remove population from hash table
     for (int i = 0; i < N_POP; i++) {
       int id = hash(i) % HASH_SIZE;
       while (ht[id] != -1) { ht[id] = -1; id = (id + 1) % HASH_SIZE; }
     }
+  #endif
   }
 
   memcpy(seq, perm(0), sizeof(int) * n_imgs);
