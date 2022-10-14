@@ -21,6 +21,8 @@ static vec3 *imgpos;
 static int *seq;
 static inline void find_seq();
 
+extern float *sphere_scores;
+
 void setup_collage()
 {
   st = state_new();
@@ -87,7 +89,11 @@ void setup_collage()
   find_seq();
   for (int i = 0; i < n_imgs; i++) {
     int j = seq[i];
-    printf("%d %.4lf %.4lf\n", j, imgs[j].c_ra, imgs[j].c_dec);
+    printf("(%8.5f,%8.5f,%8.5f) %3d",
+      imgpos[j].x, imgpos[j].y, imgpos[j].z, j);
+    if (i >= 2)
+      printf(" %8.5f", sphere_scores[(seq[i - 2] * n_imgs + seq[i - 1]) * n_imgs + seq[i]]);
+    putchar('\n');
   }
   // exit(0);
 
@@ -124,44 +130,57 @@ void draw_collage()
 // Sequence determination by genetic algorithm
 
 vec3 *tg_gc = NULL;
-/*
-static inline float sphere_angle(vec3 a, vec3 b, vec3 c)
+float *dist_gc = NULL;
+float *sphere_scores = NULL;
+static inline float dist_score(float o)
+{
+  // A distance of zero contributes equally with a turn of 67.5 degrees
+  if (o < 0.5) return (0.5 - o) * (0.5 - o) * 2.25;
+  // A distance of a hemicircle contributes equally with a turn of 72 degrees
+  if (o > 2.0) return (o - 2.0) * (o - 2.0) * 0.49;
+  return 0;
+}
+static inline float sphere_score(int a, int b, int c)
 {
   // The angle between the two great circles
-  // passing between A-B and A-C, respectively
+  // passing between A-B and B-C, respectively
   // Equal to: arccos of dot product of derivatives of
-  // slerp(A, B, t) and slerp(A, C, t) at t = 0
-  float oAB = acosf(vec3_dot(a, b));
-  vec3 dAB = vec3_normalize(vec3_add(
-    vec3_mul(a, -oAB * cosf(oAB) / sinf(oAB)),
-    vec3_mul(b, oAB / sinf(oAB))));
-  float oAC = acosf(vec3_dot(a, c));
-  vec3 dAC = vec3_normalize(vec3_add(
-    vec3_mul(a, -oAC * cosf(oAC) / sinf(oAC)),
-    vec3_mul(c, oAC / sinf(oAC))));
-  return acosf(fabsf(vec3_dot(dAB, dAC)));
-}
+  // -slerp(B, A, t) and slerp(B, C, t) at t = 0
+  float cos_angle = -vec3_dot(
+    tg_gc[b * n_imgs + a],
+    tg_gc[b * n_imgs + c]);
+  float angle = acosf(fabsf(cos_angle));
+  float angle_score = (angle / (0.5*M_PI)) * (angle / (0.5*M_PI));
+  float o = dist_gc[b * n_imgs + c];
+  if (cos_angle < 0) o = 2*M_PI - o;
+/*
+  printf("- tan A-B: %8.5f,%8.5f,%8.5f\n", tg_gc[b * n_imgs + a].x, tg_gc[b * n_imgs + a].y, tg_gc[b * n_imgs + a].z);
+  printf("- tan B-C: %8.5f,%8.5f,%8.5f\n", tg_gc[b * n_imgs + c].x, tg_gc[b * n_imgs + c].y, tg_gc[b * n_imgs + c].z);
+  printf("- angle: %.6f, dist: %.6f, dist-score: %.6f\n", angle, o, dist_score(o));
 */
-static inline float sphere_angle(int a, int b, int c)
-{
-  return acosf(fabsf(vec3_dot(
-    tg_gc[a * n_imgs + b],
-    tg_gc[a * n_imgs + c]
-  )));
+  return angle_score + dist_score(o);
 }
 
 static inline float eval_seq(int *seq)
 {
+/*
   float score = 0;
-  for (int i = 2; i < n_imgs; i++)
-    // score -= sphere_angle(imgpos[seq[i - 2]], imgpos[seq[i - 1]], imgpos[seq[i]]);
-    score -= sphere_angle(seq[i - 2], seq[i - 1], seq[i]);
-  for (int i = 1; i < n_imgs; i++) {
-    float d = vec3_dist(imgpos[seq[i - 1]], imgpos[seq[i]]);
-    if (d < 0.5) score -= (0.5 - d);
-    else if (d > 2) score -= (d - 2);
+  float max = 0;
+  score += dist_score(dist_gc[seq[0] * n_imgs + seq[1]]);
+  for (int i = 2; i < n_imgs; i++) {
+    float cur = sphere_scores[(seq[i - 2] * n_imgs + seq[i - 1]) * n_imgs + seq[i]];
+    score += cur;
+    if (cur > max) max = cur;
   }
-  return score;
+  return -(score + max);
+*/
+  float d1 = dist_score(dist_gc[seq[0] * n_imgs + seq[1]]);
+  float score = d1 * d1;
+  for (int i = 2; i < n_imgs; i++) {
+    float di = sphere_scores[(seq[i - 2] * n_imgs + seq[i - 1]) * n_imgs + seq[i]];
+    score += di * di;
+  }
+  return -score;
 }
 
 // Beginning of xoshiro256starstar.c
@@ -251,17 +270,55 @@ static inline void find_seq()
 
   // Tangent along great circles
   tg_gc = (vec3 *)realloc(tg_gc, sizeof(vec3) * n_imgs * n_imgs);
+  dist_gc = (float *)realloc(dist_gc, sizeof(float) * n_imgs * n_imgs);
   for (int i = 0; i < n_imgs; i++) {
     vec3 a = imgpos[i];
     for (int j = 0; j < n_imgs; j++) {
       vec3 b = imgpos[j];
       float oAB = acosf(vec3_dot(a, b));
+      dist_gc[i * n_imgs + j] = oAB;
       vec3 dAB = vec3_normalize(vec3_add(
         vec3_mul(a, -oAB * cosf(oAB) / sinf(oAB)),
         vec3_mul(b, oAB / sinf(oAB))));
       tg_gc[i * n_imgs + j] = dAB;
     }
   }
+
+/*
+  int a[] = {7,8,3,37,26,18,10,15,31,36,2,23,5,35,19,25,20,24,38,1,12,34,13,32,29,14,21,27,22,28,9,17,30,0,33,11,6,4,16};
+  for (int i = 0; i < n_imgs; i++) {
+    int j = a[i];
+    if (i < 2) {
+      printf("(%8.5f,%8.5f,%8.5f) %3d\n",
+        imgpos[j].x, imgpos[j].y, imgpos[j].z, j);
+    } else {
+      printf("(%8.5f,%8.5f,%8.5f) %3d %8.5f\n",
+        imgpos[j].x, imgpos[j].y, imgpos[j].z, j,
+        sphere_score(a[i - 2], a[i - 1], a[i]));
+    }
+  }
+  exit(0);
+*/
+/*
+  for (int i = 0; i < 4; i++)
+    for (int j = 0; j < 4; j++) if (j != i)
+      for (int k = 0; k < 4; k++) if (k != i && k != j) {
+        printf("[%d] %8.5f,%8.5f,%8.5f - [%d] %8.5f,%8.5f,%8.5f - [%d] %8.5f,%8.5f,%8.5f\n",
+          i, imgpos[i].x, imgpos[i].y, imgpos[i].z,
+          j, imgpos[j].x, imgpos[j].y, imgpos[j].z,
+          k, imgpos[k].x, imgpos[k].y, imgpos[k].z);
+        printf("%.6f\n", sphere_score(i, j, k));
+      }
+  exit(0);
+*/
+  sphere_scores = (float *)realloc(sphere_scores,
+    sizeof(float) * n_imgs * n_imgs * n_imgs);
+  for (int i = 0; i < n_imgs; i++)
+    for (int j = 0; j < n_imgs; j++) if (j != i)
+      for (int k = 0; k < n_imgs; k++) if (k != i && k != j) {
+        sphere_scores[(i * n_imgs + j) * n_imgs + k] =
+          sphere_score(i, j, k);
+      }
 
   // Hash table for deduplication
   #define HASH_SIZE 100003
