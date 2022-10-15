@@ -60,25 +60,26 @@ void update()
   last_y = y;
   if (!cursor_capt) dx = dy = 0;
 
-/*
   view_ra -= dx * 3.5e-3;
   view_ra = fmod(view_ra + M_PI*2, M_PI*2);
   view_dec -= dy * 3.5e-3;
   view_dec = (view_dec > DEC_MAX ? DEC_MAX :
     view_dec < -DEC_MAX ? -DEC_MAX : view_dec);
   // printf("%.4lf %.4lf\n", view_ra, view_dec);
-  // Map from screen space to model space
-  vec3 p = (vec3){
-    cos(view_dec) * cos(view_ra),
-    cos(view_dec) * sin(view_ra),
-    sin(view_dec)
-  };
-  vec3 u = (vec3){0, 0, 1};
-  u = vec3_normalize(vec3_diff(u, vec3_mul(p, vec3_dot(u, p))));
-  view_ori = rot_from_view(p, vec3_cross(p, u));
-*/
 
   update_collage();
+
+  if (cursor_capt) {
+    // Map from screen space to model space
+    vec3 p = (vec3){
+      cos(view_dec) * cos(view_ra),
+      cos(view_dec) * sin(view_ra),
+      sin(view_dec)
+    };
+    vec3 u = (vec3){0, 0, 1};
+    u = vec3_normalize(vec3_diff(u, vec3_mul(p, vec3_dot(u, p))));
+    view_ori = rot_from_view(p, vec3_cross(p, u));
+  }
 }
 
 void draw()
@@ -134,7 +135,7 @@ int main(int argc, char *argv[])
     glfwPollEvents();
     if (glfwWindowShouldClose(window)) break;
 
-    bool k1 = (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS);
+    bool k1 = (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS);
     if (!cursor_k1 && k1) cursor_capt = !cursor_capt;
     cursor_k1 = k1;
     bool k2 = (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS);

@@ -163,15 +163,16 @@ static inline quat de_casteljau_cubic(
   return i30;
 }
 
+#define INTERVAL 24
 void update_collage()
 {
-  if (++T == 240) {
+  if (++T == INTERVAL) {
     start = (start + 1) % n_imgs;
     T = 0;
     printf("%d (%.4f,%.4f,%.4f)\n", seq[start],
       imgpos[seq[start]].x, imgpos[seq[start]].y, imgpos[seq[start]].z);
   }
-  float t = (float)T / 240;
+  float t = (float)T / INTERVAL;
   if (start < n_imgs - 1)
     view_ori = de_casteljau_cubic(
       waypts[start * 3 + 0],
@@ -350,6 +351,11 @@ static inline void find_seq()
         sphere_scores[(i * n_imgs + j) * n_imgs + k] = s3 * s3;
       }
     }
+  int a[] = {
+18,19,38,26,30,37,12,9,32,1,5,2,31,40,36,27,39,23,11,8,4,0,10,33,24,28,34,17,25,20,7,15,13,21,14,29,16,22,35,6,3
+  };
+  memcpy(seq, a, sizeof a);
+  return;
 
 #define DEDUP 0
 #if DEDUP
