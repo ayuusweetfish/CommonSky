@@ -27,7 +27,7 @@ elif ! command $solve_field &>/dev/null; then
   exit 1
 fi
 
-images=`find $img_path \( -name "*.jpg" -o -name "*.png" \)`
+images=`find $img_path \( -name "*.jpg" -o -name "*.jpeg" -o -name "*.png" \)`
 
 echo "(1/3) Crop"
 for i in $images; do
