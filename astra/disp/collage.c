@@ -21,7 +21,12 @@ static vec3 *imgpos;
 static int *seq;
 static inline void find_seq();
 
-extern float *sphere_scores;
+static vec3 *tg_gc = NULL;
+static float *dist_gc = NULL;
+// Cached scores
+// [i N^2 + i N + j]: dist_score(i, j)^2
+// [i N^2 + j N + k]: sphere_score(i, j, k)^2
+static float *sphere_scores = NULL;
 
 void setup_collage()
 {
@@ -107,14 +112,29 @@ void setup_collage()
   state_buffer(&st, 6, fullscreen_coords);
 }
 
+static int T = 0, start = 0;
+
+void update_collage()
+{
+  if (++T == 240) {
+    start = (start + 1) % n_imgs;
+    T = 0;
+
+    vec3 p = imgpos[seq[start]];
+    vec3 u = (vec3){0, 0, 1};
+    u = vec3_normalize(vec3_diff(u, vec3_mul(p, vec3_dot(u, p))));
+    vec3 xto = vec3_cross(p, u);
+    view_ori = rot_from_vecs(xto, u, vec3_mul(p, -1));
+    printf("%d %.4f %.4f %.4f\n", seq[start], p.x, p.y, p.z);
+  }
+}
+
 void draw_collage()
 {
   glEnable(GL_BLEND);
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   state_uniform1f(st, "aspectRatio", (float)fb_w / fb_h);
   state_uniform4f(st, "viewOri", view_ori.x, view_ori.y, view_ori.z, view_ori.w);
-  static int T = 0, start = 0;
-  if (++T == 8) { start = (start + 1) % n_imgs; T = 0; printf("%d\n", seq[start]); }
   for (int _i = 0; _i < 10; _i++) {
     int i = seq[(start + n_imgs - 9 + _i) % n_imgs];
     int n_coeffs = (imgs[i].order + 1) * (imgs[i].order + 2);
@@ -128,13 +148,6 @@ void draw_collage()
 }
 
 // Sequence determination by genetic algorithm
-
-vec3 *tg_gc = NULL;
-float *dist_gc = NULL;
-// Cached scores
-// [i N^2 + i N + j]: dist_score(i, j)^2
-// [i N^2 + j N + k]: sphere_score(i, j, k)^2
-float *sphere_scores = NULL;
 
 static inline float dist_score(float o)
 {
@@ -285,6 +298,11 @@ static inline void find_seq()
         sphere_scores[(i * n_imgs + j) * n_imgs + k] = s3 * s3;
       }
     }
+  int a[] = {
+    9,23,0,32,13,22,39,40,30,25,38,19,28,34,29,31,7,17,2,11,3,18,8,12,20,33,21,35,27,14,6,36,16,10,24,37,5,26,1,4,15
+  };
+  memcpy(seq, a, sizeof a);
+  return;
 
 #define DEDUP 0
 #if DEDUP

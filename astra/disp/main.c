@@ -60,6 +60,7 @@ void update()
   last_y = y;
   if (!cursor_capt) dx = dy = 0;
 
+/*
   view_ra -= dx * 3.5e-3;
   view_ra = fmod(view_ra + M_PI*2, M_PI*2);
   view_dec -= dy * 3.5e-3;
@@ -79,6 +80,9 @@ void update()
   // (1, 0, 0) maps to xto
   vec3 xto = vec3_cross(p, u);
   view_ori = rot_from_vecs(xto, u, vec3_mul(p, -1));
+*/
+
+  update_collage();
 }
 
 void draw()

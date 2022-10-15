@@ -21,17 +21,17 @@ vec4 quat_mul(vec4 p, vec4 q) {
     p.w * q.w - dot(p.xyz, q.xyz)
   );
 }
-vec4 quat_rot(vec3 v, vec4 q) {
-  return quat_mul(quat_mul(q, vec4(v, 0)), vec4(-q.xyz, q.w));
+vec3 quat_rot(vec3 v, vec4 q) {
+  return quat_mul(quat_mul(q, vec4(v, 0)), vec4(-q.xyz, q.w)).xyz;
 }
 vec3 rot(vec3 v, vec3 axis, float angle) {
   vec4 q = vec4(axis * sin(angle / 2), cos(angle / 2));
-  return quat_rot(v, q).xyz;
+  return quat_rot(v, q);
 }
 vec3 look_at(vec2 fragPos) {
   vec2 p = fragPos / (projCircleR * vec2(1, aspectRatio));
   vec3 s = normalize(vec3(p * 2, -1 + dot(p, p)));
-  return quat_rot(s, viewOri).xyz;
+  return quat_rot(s, viewOri);
 }
 
 void main() {

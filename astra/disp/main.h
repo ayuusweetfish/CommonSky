@@ -114,21 +114,10 @@ static inline quat rot_from_vecs(vec3 xto, vec3 yto, vec3 zto) {
   return (quat){x, y, z, w};
 }
 
-static inline vec2 scr_pos(vec3 p) {
-  p = rot(p, (vec3){0, 0, 1}, -(view_ra - M_PI / 2));
-  p = rot(p, (vec3){1, 0, 0}, -(view_dec + M_PI / 2));
-  float px = p.x / (1 - p.z);
-  float py = p.y / (1 - p.z);
-  const float projCircleR = 3;  // TODO: Sync
-  float aspectRatio = (float)fb_w / fb_h;
-  px *= projCircleR;
-  py *= (projCircleR * aspectRatio);
-  return (vec2){px, py};
-}
-
 // collage.c
 
 void setup_collage();
+void update_collage();
 void draw_collage();
 
 // constellart.c
