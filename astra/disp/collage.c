@@ -21,12 +21,16 @@ static vec3 *imgpos;
 static int *seq;
 static inline void find_seq();
 
+// Tangent directions
+// [i N + j]: starting from i, heading towards j along the great circle
 static vec3 *tg_gc = NULL;
 static float *dist_gc = NULL;
 // Cached scores
 // [i N^2 + i N + j]: dist_score(i, j)^2
 // [i N^2 + j N + k]: sphere_score(i, j, k)^2
 static float *sphere_scores = NULL;
+
+static quat *waypts = NULL;
 
 void setup_collage()
 {
@@ -100,6 +104,40 @@ void setup_collage()
       printf(" %8.5f", sphere_scores[(seq[i - 2] * n_imgs + seq[i - 1]) * n_imgs + seq[i]]);
     putchar('\n');
   }
+  // Rotation waypoints
+  waypts = (quat *)malloc(sizeof(quat) * n_imgs * 3);
+  for (int i = 0; i < n_imgs; i++) {
+    vec3 right = (vec3){0, 0, 0};
+    if (i > 0) right = vec3_mul(tg_gc[seq[i] * n_imgs + seq[i - 1]], -1);
+    if (i < n_imgs - 1)
+      right = vec3_normalize(vec3_add(right, tg_gc[seq[i] * n_imgs + seq[i + 1]]));
+    waypts[i * 3] = rot_from_view(imgpos[seq[i]], right);
+  }
+  for (int i = 0; i < n_imgs; i++) {
+    quat q_in = (quat){0, 0, 0, 1};
+    quat q_ou = (quat){0, 0, 0, 1};
+    if (i > 0)
+      q_in = quat_mul(waypts[i * 3], quat_inv(waypts[(i - 1) * 3]));
+    if (i < n_imgs - 1)
+      q_ou = quat_mul(waypts[(i + 1) * 3], quat_inv(waypts[i * 3]));
+    if (i == 0) q_in = q_ou;
+    if (i == n_imgs - 1) q_ou = q_in;
+    quat log_q_in = quat_log(q_in);
+    quat log_q_ou = quat_log(q_ou);
+    quat q_offs = quat_exp((quat){
+      (log_q_in.x + log_q_ou.x) / 2,
+      (log_q_in.y + log_q_ou.y) / 2,
+      (log_q_in.z + log_q_ou.z) / 2,
+      (log_q_in.w + log_q_ou.w) / 2
+    });
+    q_offs = quat_pow(q_offs, 1/3.f);
+    if (i < n_imgs - 1)
+      waypts[i * 3 + 1] = quat_mul(q_offs, waypts[i * 3]);
+    if (i > 0)
+      waypts[i * 3 - 1] = quat_mul(quat_inv(q_offs), waypts[i * 3]);
+  }
+  for (int i = 0; i <= (n_imgs - 1) * 3; i++)
+    printf("%.5f %.5f %.5f %.5f\n", waypts[i].x, waypts[i].y, waypts[i].z, waypts[i].w);
   // exit(0);
 
   // Entire screen
@@ -114,19 +152,34 @@ void setup_collage()
 
 static int T = 0, start = 0;
 
+static inline quat de_casteljau_cubic(
+  quat q0, quat q1, quat q2, quat q3,
+  float t)
+{
+  quat i10 = quat_slerp(q0, q1, t);
+  quat i11 = quat_slerp(q1, q2, t);
+  quat i12 = quat_slerp(q2, q3, t);
+  quat i20 = quat_slerp(i10, i11, t);
+  quat i21 = quat_slerp(i11, i12, t);
+  quat i30 = quat_slerp(i20, i21, t);
+  return i30;
+}
+
 void update_collage()
 {
   if (++T == 240) {
     start = (start + 1) % n_imgs;
     T = 0;
-
-    vec3 p = imgpos[seq[start]];
-    vec3 u = (vec3){0, 0, 1};
-    u = vec3_normalize(vec3_diff(u, vec3_mul(p, vec3_dot(u, p))));
-    vec3 xto = vec3_cross(p, u);
-    view_ori = rot_from_vecs(xto, u, vec3_mul(p, -1));
-    printf("%d %.4f %.4f %.4f\n", seq[start], p.x, p.y, p.z);
+    printf("%d\n", seq[start]);
   }
+  float t = (float)T / 240;
+  view_ori = de_casteljau_cubic(
+    waypts[start * 3 + 0],
+    waypts[start * 3 + 1],
+    waypts[start * 3 + 2],
+    waypts[start * 3 + 3],
+    t
+  );
 }
 
 void draw_collage()
@@ -166,10 +219,9 @@ static inline float sphere_score(int a, int b, int c)
   float cos_angle = -vec3_dot(
     tg_gc[b * n_imgs + a],
     tg_gc[b * n_imgs + c]);
-  float angle = acosf(fabsf(cos_angle));
+  float angle = acosf(cos_angle);
   float angle_score = (angle / (0.5*M_PI)) * (angle / (0.5*M_PI));
   float o = dist_gc[b * n_imgs + c];
-  if (cos_angle < 0) o = 2*M_PI - o;
 /*
   printf("- tan A-B: %8.5f,%8.5f,%8.5f\n", tg_gc[b * n_imgs + a].x, tg_gc[b * n_imgs + a].y, tg_gc[b * n_imgs + a].z);
   printf("- tan B-C: %8.5f,%8.5f,%8.5f\n", tg_gc[b * n_imgs + c].x, tg_gc[b * n_imgs + c].y, tg_gc[b * n_imgs + c].z);
@@ -298,11 +350,6 @@ static inline void find_seq()
         sphere_scores[(i * n_imgs + j) * n_imgs + k] = s3 * s3;
       }
     }
-  int a[] = {
-    9,23,0,32,13,22,39,40,30,25,38,19,28,34,29,31,7,17,2,11,3,18,8,12,20,33,21,35,27,14,6,36,16,10,24,37,5,26,1,4,15
-  };
-  memcpy(seq, a, sizeof a);
-  return;
 
 #define DEDUP 0
 #if DEDUP

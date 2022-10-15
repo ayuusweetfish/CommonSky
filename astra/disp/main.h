@@ -50,7 +50,7 @@ static inline vec3 vec3_mul(vec3 a, float k) {
 static inline float vec3_dot(vec3 a, vec3 b) {
   return a.x * b.x + a.y * b.y + a.z * b.z;
 }
-static inline float vec3_norm(vec3 a) { return vec3_dot(a, a); }
+static inline float vec3_norm(vec3 a) { return sqrtf(vec3_dot(a, a)); }
 static inline float vec3_dist(vec3 a, vec3 b) {
   return vec3_norm(vec3_diff(a, b));
 }
@@ -79,6 +79,9 @@ static inline vec3 vec3_normalize(vec3 a) {
   float norm = sqrtf(a.x * a.x + a.y * a.y + a.z * a.z);
   return (vec3){a.x / norm, a.y / norm, a.z / norm};
 }
+static inline quat quat_inv(quat q) {
+  return (quat){-q.x, -q.y, -q.z, q.w};
+}
 static inline quat quat_mul(quat p, quat q) {
   return (quat){
     p.w * q.x + q.w * p.x + (p.y * q.z - q.y * p.z),
@@ -88,8 +91,7 @@ static inline quat quat_mul(quat p, quat q) {
   };
 }
 static inline vec3 rot_by_quat(vec3 v, quat q) {
-  quat r = quat_mul(quat_mul(q, (quat){v.x, v.y, v.z, 0}),
-    (quat){-q.x, -q.y, -q.z, q.w});
+  quat r = quat_mul(quat_mul(q, (quat){v.x, v.y, v.z, 0}), quat_inv(q));
   return (vec3){r.x, r.y, r.z};
 }
 static inline vec3 rot(vec3 v, vec3 axis, float angle) {
@@ -112,6 +114,37 @@ static inline quat rot_from_vecs(vec3 xto, vec3 yto, vec3 zto) {
   float y = (M[0][2] - M[2][0]) / (4 * w);
   float z = (M[1][0] - M[0][1]) / (4 * w);
   return (quat){x, y, z, w};
+}
+static inline quat rot_from_view(vec3 lookat, vec3 right) {
+  return rot_from_vecs(
+    right,
+    vec3_cross(right, lookat),
+    vec3_mul(lookat, -1)
+  );
+}
+static inline quat quat_exp(quat q) {
+  float e = expf(q.w);
+  vec3 v = (vec3){q.x, q.y, q.z};
+  float vnorm = vec3_norm(v);
+  float w = e * cosf(vnorm);
+  v = vec3_mul(v, e * (fabsf(vnorm) < 1e-4 ? 1 : sinf(vnorm) / vnorm));
+  return (quat){v.x, v.y, v.z, w};
+}
+static inline quat quat_log(quat q) {
+  // Caveat: does not handle pure quaternions
+  float qnorm = sqrtf(q.x*q.x + q.y*q.y + q.z*q.z + q.w*q.w);
+  vec3 v = (vec3){q.x, q.y, q.z};
+  float vnorm = vec3_norm(v);
+  float w = logf(qnorm);
+  v = vec3_mul(v, acosf(q.w / qnorm) / vnorm);
+  return (quat){v.x, v.y, v.z, w};
+}
+static inline quat quat_pow(quat q, float t) {
+  quat l = quat_log(q);
+  return quat_exp((quat){t*l.x, t*l.y, t*l.z, t*l.w});
+}
+static inline quat quat_slerp(quat a, quat b, float t) {
+  return quat_mul(quat_pow(quat_mul(b, quat_inv(a)), t), a);
 }
 
 // collage.c
