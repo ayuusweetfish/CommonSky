@@ -117,9 +117,9 @@ void setup_collage()
     quat q_in = (quat){0, 0, 0, 1};
     quat q_ou = (quat){0, 0, 0, 1};
     if (i > 0)
-      q_in = quat_mul(waypts[i * 3], quat_inv(waypts[(i - 1) * 3]));
+      q_in = quat_minorarc(waypts[(i - 1) * 3], waypts[i * 3]);
     if (i < n_imgs - 1)
-      q_ou = quat_mul(waypts[(i + 1) * 3], quat_inv(waypts[i * 3]));
+      q_ou = quat_minorarc(waypts[i * 3], waypts[(i + 1) * 3]);
     if (i == 0) q_in = q_ou;
     if (i == n_imgs - 1) q_ou = q_in;
     quat log_q_in = quat_log(q_in);
@@ -136,8 +136,6 @@ void setup_collage()
     if (i > 0)
       waypts[i * 3 - 1] = quat_mul(quat_inv(q_offs), waypts[i * 3]);
   }
-  for (int i = 0; i <= (n_imgs - 1) * 3; i++)
-    printf("%.5f %.5f %.5f %.5f\n", waypts[i].x, waypts[i].y, waypts[i].z, waypts[i].w);
   // exit(0);
 
   // Entire screen
@@ -170,16 +168,18 @@ void update_collage()
   if (++T == 240) {
     start = (start + 1) % n_imgs;
     T = 0;
-    printf("%d\n", seq[start]);
+    printf("%d (%.4f,%.4f,%.4f)\n", seq[start],
+      imgpos[seq[start]].x, imgpos[seq[start]].y, imgpos[seq[start]].z);
   }
   float t = (float)T / 240;
-  view_ori = de_casteljau_cubic(
-    waypts[start * 3 + 0],
-    waypts[start * 3 + 1],
-    waypts[start * 3 + 2],
-    waypts[start * 3 + 3],
-    t
-  );
+  if (start < n_imgs - 1)
+    view_ori = de_casteljau_cubic(
+      waypts[start * 3 + 0],
+      waypts[start * 3 + 1],
+      waypts[start * 3 + 2],
+      waypts[start * 3 + 3],
+      t
+    );
 }
 
 void draw_collage()
@@ -204,10 +204,10 @@ void draw_collage()
 
 static inline float dist_score(float o)
 {
-  // A distance of zero contributes equally with a turn of 67.5 degrees
-  if (o < 0.5) return (0.5 - o) * (0.5 - o) * 2.25;
-  // A distance of a hemicircle contributes equally with a turn of 72 degrees
-  if (o > 2.0) return (o - 2.0) * (o - 2.0) * 0.49;
+  // A distance of zero contributes equally with a turn of 72 degrees
+  if (o < 0.5) return (0.5 - o) * (0.5 - o) * 2.56;
+  // A distance of 120 degrees contributes equally with a turn of 72 degrees
+  if (o > 1.0) return (o - 1.0) * (o - 1.0) * 0.49;
   return 0;
 }
 static inline float sphere_score(int a, int b, int c)

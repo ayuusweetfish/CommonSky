@@ -82,6 +82,18 @@ static inline vec3 vec3_normalize(vec3 a) {
 static inline quat quat_inv(quat q) {
   return (quat){-q.x, -q.y, -q.z, q.w};
 }
+static inline quat quat_scale(quat q, float k) {
+  return (quat){k*q.x, k*q.y, k*q.z, k*q.w};
+}
+static inline float quat_norm(quat q) {
+  return sqrtf(q.x*q.x + q.y*q.y + q.z*q.z + q.w*q.w);
+}
+static inline quat quat_normalize(quat q) {
+  return quat_scale(q, 1.f / quat_norm(q));
+}
+static inline quat quat_add(quat p, quat q) {
+  return (quat){p.x+q.x, p.y+q.y, p.z+q.z, p.w+q.w};
+}
 static inline quat quat_mul(quat p, quat q) {
   return (quat){
     p.w * q.x + q.w * p.x + (p.y * q.z - q.y * p.z),
@@ -132,7 +144,7 @@ static inline quat quat_exp(quat q) {
 }
 static inline quat quat_log(quat q) {
   // Caveat: does not handle pure quaternions
-  float qnorm = sqrtf(q.x*q.x + q.y*q.y + q.z*q.z + q.w*q.w);
+  float qnorm = quat_norm(q);
   vec3 v = (vec3){q.x, q.y, q.z};
   float vnorm = vec3_norm(v);
   float w = logf(qnorm);
@@ -141,10 +153,14 @@ static inline quat quat_log(quat q) {
 }
 static inline quat quat_pow(quat q, float t) {
   quat l = quat_log(q);
-  return quat_exp((quat){t*l.x, t*l.y, t*l.z, t*l.w});
+  return quat_exp(quat_scale(l, t));
+}
+static inline quat quat_minorarc(quat from, quat to) {
+  quat q = quat_mul(to, quat_inv(from));
+  return q.w < 0 ? quat_scale(q, -1) : q;
 }
 static inline quat quat_slerp(quat a, quat b, float t) {
-  return quat_mul(quat_pow(quat_mul(b, quat_inv(a)), t), a);
+  return quat_mul(quat_pow(quat_minorarc(a, b), t), a);
 }
 
 // collage.c
