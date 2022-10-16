@@ -4,6 +4,7 @@
 #include <dirent.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 static draw_state st;
 
@@ -205,8 +206,8 @@ void draw_collage()
 
 static inline float dist_score(float o)
 {
-  // A distance of zero contributes equally with a turn of 72 degrees
-  if (o < 0.5) return (0.5 - o) * (0.5 - o) * 2.56;
+  // A distance of zero contributes equally with a turn of 36 degrees
+  if (o < 0.5) return (0.5 - o) * (0.5 - o) * 0.64;
   // A distance of 120 degrees contributes equally with a turn of 72 degrees
   if (o > 1.0) return (o - 1.0) * (o - 1.0) * 0.49;
   return 0;
@@ -236,7 +237,7 @@ static inline float eval_seq(int *seq)
   float score = sphere_scores[seq[0] * (n_imgs + 1) * n_imgs + seq[1]];
   for (int i = 2; i < n_imgs; i++)
     score += sphere_scores[(seq[i - 2] * n_imgs + seq[i - 1]) * n_imgs + seq[i]];
-  return -score;
+  return score;
 }
 
 // Beginning of xoshiro256starstar.c
@@ -272,26 +273,26 @@ static uint64_t rand_next(void) {
 
 // End of xoshiro256starstar.c
 
-static int *pmx_map = NULL;
 static inline void pmx(
   const int *restrict a,
   const int *restrict b,
-  int *restrict o)
+  int *restrict o,
+  int *restrict map)
 {
   int n = n_imgs;
   int l = rand_next() % n, r = rand_next() % (n - 1);
   if (l == r) r = n - 1;
   if (l > r) { int t = l; l = r; r = t; }
 
-  memset(pmx_map, -1, sizeof(int) * n);
+  memset(map, -1, sizeof(int) * n);
   for (int i = l; i < r; i++) {
     o[i] = a[i];
-    pmx_map[a[i]] = b[i];
+    map[a[i]] = b[i];
   }
   for (int i = 0; i < l; i++)
-    for (o[i] = b[i]; pmx_map[o[i]] != -1; o[i] = pmx_map[o[i]]) { }
+    for (o[i] = b[i]; map[o[i]] != -1; o[i] = map[o[i]]) { }
   for (int i = r; i < n; i++)
-    for (o[i] = b[i]; pmx_map[o[i]] != -1; o[i] = pmx_map[o[i]]) { }
+    for (o[i] = b[i]; map[o[i]] != -1; o[i] = map[o[i]]) { }
 }
 
 static inline void mut(int *a)
@@ -309,11 +310,55 @@ static inline void mut(int *a)
   }
 }
 
-static inline int genome_cmp(const void *a, const void *b)
+#define RADIX_BITS  8
+#define RADIX_SIZE  (1 << RADIX_BITS)
+#define RADIX_MASK  (RADIX_SIZE - 1)
+#define RADIX_ITS   4
+static inline void radixsort_inner(
+  int n, uint32_t *restrict a, uint32_t *restrict b, int digit)
 {
-  float diff = *(float *)a - *(float *)b;
-  return (diff < 0 ? +1 : diff > 0 ? -1 : 0);
+  // Stride = 2
+#define A(_i) a[(_i) * 2]
+
+  int c[RADIX_SIZE] = { 0 };
+  for (int i = 0; i < n; i++)
+    c[(A(i) >> (RADIX_BITS * digit)) & RADIX_MASK] += 1;
+  for (int i = 0, s = 0; i < RADIX_SIZE; i++) {
+    int t = c[i]; c[i] = s; s += t;
+  }
+  for (int i = 0; i < n; i++) {
+    int index = c[(A(i) >> (RADIX_BITS * digit)) & RADIX_MASK]++;
+    b[index * 2 + 0] = a[i * 2 + 0];
+    b[index * 2 + 1] = a[i * 2 + 1];
+  }
+
+#undef A
 }
+// Scratch space size is n * 16 bytes
+static inline void sort_genomes(
+  char *restrict p, int n, int elmsz, char *restrict p_out, int n_out, char *restrict scratch)
+{
+  // Sorts each element according to the first two bytes bitcast to FP32/U32
+  uint32_t *a = (uint32_t *)scratch;
+  uint32_t *b = ((uint32_t *)scratch + n * 2);
+
+  for (int i = 0; i < n; i++) {
+    a[i * 2 + 0] = *(uint32_t *)(p + i * elmsz);
+    a[i * 2 + 1] = i;
+  }
+
+  // Extra care should be taken if RADIX_ITS is changed to an odd number
+  for (int d = 0; d < RADIX_ITS; d += 2) {
+    radixsort_inner(n, a, b, d);
+    radixsort_inner(n, b, a, d + 1);
+  }
+  for (int i = 0; i < n_out; i++)
+    memcpy(p_out + i * elmsz, p + a[i * 2 + 1] * elmsz, elmsz);
+}
+#undef RADIX_BITS
+#undef RADIX_SIZE
+#undef RADIX_MASK
+#undef RADIX_ITS
 
 static inline void find_seq()
 {
@@ -351,11 +396,13 @@ static inline void find_seq()
         sphere_scores[(i * n_imgs + j) * n_imgs + k] = s3 * s3;
       }
     }
+  /*
   int a[] = {
-18,19,38,26,30,37,12,9,32,1,5,2,31,40,36,27,39,23,11,8,4,0,10,33,24,28,34,17,25,20,7,15,13,21,14,29,16,22,35,6,3
+55,174,35,165,122,100,150,95,11,61,19,153,18,112,180,99,145,78,0,16,21,137,5,172,164,38,105,94,54,116,140,73,42,177,79,51,24,89,36,146,167,52,141,127,12,50,173,30,115,163,88,108,148,176,91,64,166,77,149,103,147,98,6,128,155,175,168,29,179,138,85,39,41,71,45,171,47,13,126,113,53,22,49,102,136,93,119,107,1,118,96,83,90,80,162,66,60,43,111,139,169,120,3,32,20,7,158,142,44,10,178,58,125,57,104,97,160,15,114,62,132,92,4,170,33,152,68,87,72,46,82,110,106,28,76,161,9,117,63,17,134,74,144,26,23,154,131,67,69,143,156,121,124,25,65,40,133,59,101,135,123,81,2,84,129,130,86,48,8,151,159,14,27,75,56,34,109,157,31,70,37,181
   };
   memcpy(seq, a, sizeof a);
   return;
+  */
 
 #define DEDUP 0
 #if DEDUP
@@ -378,9 +425,12 @@ static inline void find_seq()
   #define start(_i) (_pop + (_i) * size)
   #define perm(_i) ((int *)(_pop + (_i) * size + sizeof(float)))
   #define val(_i) (*(float *)(_pop + (_i) * size))
-  char *_pop = (char *)malloc((N_POP + N_REP) * size);
+  char *_poppool = (char *)malloc((N_POP + N_REP) * size * 2);
+  char *_pop = _poppool, *_npop = _poppool + (N_POP + N_REP) * size;
 
-  pmx_map = (int *)realloc(pmx_map, sizeof(int) * n_imgs);
+  int *parents = (int *)malloc(sizeof(int) * N_REP * 2);
+  char *sort_scratch = (char *)malloc(16 * (N_POP + N_REP));
+  int *pmx_scratch = (int *)malloc(sizeof(int) * n_imgs);
 
   for (int i = 0; i < N_POP; i++) {
     int *p = perm(i);
@@ -396,6 +446,7 @@ static inline void find_seq()
     hash(i) = h;
   #endif
   }
+  clock_t lastclk = clock();
   for (int it = 0; it < N_ROUNDS; it++) {
   #if DEDUP
     // Add population to hash table
@@ -410,7 +461,11 @@ static inline void find_seq()
       int i = rand_next() % N_POP;
       int j = rand_next() % (N_POP - 1);
       if (i == j) j = N_POP - 1;
-      pmx(perm(i), perm(j), perm(N_POP + r));
+      parents[r * 2 + 0] = i;
+      parents[r * 2 + 1] = j;
+    }
+    for (int r = 0; r < N_REP; r++) {
+      pmx(perm(parents[r * 2 + 0]), perm(parents[r * 2 + 1]), perm(N_POP + r), pmx_scratch);
       mut(perm(N_POP + r));
       val(N_POP + r) = eval_seq(perm(N_POP + r));
     #if DEDUP
@@ -425,13 +480,16 @@ static inline void find_seq()
       if (dup && rand_next() % (1 << (dup * 2)) != 0) { r--; continue; }
     #endif
     }
-    qsort(_pop, N_POP + N_REP, size, genome_cmp);
+    sort_genomes(_pop, N_POP + N_REP, size, _npop, N_POP, sort_scratch);
+    char *_t = _pop; _pop = _npop; _npop = _t;
     if ((it + 1) * 100 / N_ROUNDS != it * 100 / N_ROUNDS) {
-      printf("== It. %d ==\n", it + 1);
+      clock_t now = clock();
+      printf("== It. %d ==  (%.8lf)\n", it + 1, (double)(now - lastclk) / CLOCKS_PER_SEC);
       for (int i = 0; i < 5; i++) {
         printf("%9.5f |", val(i));
-        for (int k = 0; k < n_imgs; k++) printf("%3d", perm(i)[k]); putchar('\n');
+        for (int k = 0; k < n_imgs; k++) printf(" %2d", perm(i)[k]); putchar('\n');
       }
+      lastclk = now;
     }
   #if DEDUP
     // Remove population from hash table
@@ -443,6 +501,10 @@ static inline void find_seq()
   }
 
   memcpy(seq, perm(0), sizeof(int) * n_imgs);
+
+  free(parents);
+  free(sort_scratch);
+  free(pmx_scratch);
 
   #undef start
   #undef perm
