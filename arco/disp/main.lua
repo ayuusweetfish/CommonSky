@@ -53,15 +53,20 @@ table.sort(imgs, function (a, b)
   return a[2] * a[3] * a[4] * a[4] > b[2] * b[3] * b[4] * b[4]
 end)
 
-for i = 12, #imgs do
+for i = 2, #imgs do
   local img = imgs[i]
   local anglecen = img[7]
   -- Find a place with the largest centre angle difference
   local bestidx, bestval = i, math.abs(anglecen - imgs[i - 1][7]) * 1.2
-  for j = i - 10, i - 1 do
-    local val = math.min(
-      math.abs(anglecen - imgs[j - 1][7]),
-      math.abs(anglecen - imgs[j][7]))
+  for j = math.max(1, i - 10), i - 1 do
+    local val
+    if j == 1 then
+      val = math.abs(anglecen - imgs[j][7]) * 1.2
+    else
+      val = math.min(
+        math.abs(anglecen - imgs[j - 1][7]),
+        math.abs(anglecen - imgs[j][7]))
+    end
     if val > bestval then
       bestidx, bestval = j, val
     end
@@ -101,13 +106,14 @@ local lastfrozen = 0
 
 local canvasupper = love.graphics.newCanvas()
 
-local freezeafter = 5.5
-local enterinterval = 0.2
+local freezeafter = 5
+local enterinterval = 0.12
 
 local scenestarttime = 1.8
 local keepmovedowntime = 4.2
-local expandtimeoffs = 3  -- For time remapping at the start
-local expandtime = expandtimeoffs + enterinterval * #imgs + 3.5
+local expandtimeoffs = 10  -- For time remapping at the start
+local expandfinalslowdown = 4
+local expandtime = expandtimeoffs + enterinterval * #imgs + expandfinalslowdown + 3.5
 local moveuptime = 3
 local totaltime = 240 * (scenestarttime + expandtime + moveuptime)
 
@@ -137,13 +143,19 @@ local drawarco = function (moveuprate)
   local offy = moveuprate * canvasheadroom
   local time = T / 240 - scenestarttime
   if time > 0 then
-    time = time - expandtimeoffs +
+    local t0 = time
+    time = t0 - expandtimeoffs +
       -- (expandtimeoffs * expandtimeoffs) / (time + expandtimeoffs)
-      expandtimeoffs * math.exp(-time / expandtimeoffs)
+      expandtimeoffs * math.exp(-t0 / expandtimeoffs)
+    local tslowdown = t0 - (enterinterval * #imgs + expandtimeoffs)
+    -- Hyperbola y(y-x) = k (where k=8)
+    local f = function (x) return (x + math.sqrt(x * x + 32)) / 2 end
+    time = time - math.max(0, f(tslowdown) -
+      (f(expandfinalslowdown) - expandfinalslowdown))
   end
 
   local fadeprogr = 1 - math.max(0, math.min(1, T / totaltime))
-  local faderemap = 0.62 -- 0.5 to 1; the peak of sunset
+  local faderemap = 0.6 -- 0.5 to 1; the peak of sunset
   fadeprogr = math.max(fadeprogr * 0.5 / faderemap,
     0.5 + 0.5 * (fadeprogr - faderemap) / (1 - faderemap))
   local fade = function (x, a, b, c)

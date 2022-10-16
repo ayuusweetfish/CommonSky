@@ -110,7 +110,7 @@ vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords) {
   );
   arcoangle = mod(arcoangle + pi * 1.5, pi * 2) - pi * 1.5;
   float inanglerange = clamp(
-    (angle_span * 2 + 0.2) * (1 - exp(-2.3 * time)) - 0.1,
+    (angle_span * 2 + 0.2) * (1 - exp(-2.5 * time)) - 0.1,
     -0.1, pi);
   float inanglerate =
     1 - smoothstep(inanglerange, inanglerange + 0.1,
@@ -118,7 +118,7 @@ vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords) {
   rate *= inanglerate;
   // Erosion
   float arcodist = abs(arcor - length(screen_coords - arcopos));
-  float erosion = smoothstep(0, 1, (time - 2) / 3 + arcodist / 1000);
+  float erosion = smoothstep(0, 1, (time - 1.7) / 3 + arcodist / 1000);
   if (erosion > 0) {
     // Arco proximity
     float x = arcodist / 60;
