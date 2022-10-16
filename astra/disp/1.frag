@@ -5,7 +5,7 @@ out vec4 fragColor;
 uniform float aspectRatio;
 uniform vec4 viewOri;
 
-uniform sampler2D cubemap[6];
+uniform sampler2D cubemap;
 
 const float pi = acos(-1);
 const float projCircleR = 3;
@@ -29,28 +29,34 @@ vec3 look_at(vec2 fragPos) {
   return quat_rot(s, viewOri);
 }
 
+// t in [-1, +1] * [-1, +1]
+// Returned value in [0, 1] * [0, 1]
+vec2 EAC_facemap(vec2 t) {
+  t = vec2(atan(t.x), atan(t.y)) * (4 / pi);
+  return (t + 1) / 2;
+}
+vec2 EAC_texcoord(vec3 p) {
+  float absx = abs(p.x);
+  float absy = abs(p.y);
+  float absz = abs(p.z);
+  float absmax = max(max(absx, absy), absz);
+  vec2 t;
+  if (absmax == absx) {
+    if (p.x > 0) t = vec2(1, 0) + EAC_facemap(vec2(-p.y, -p.z) / absmax);
+    else         t = vec2(1, 1) + EAC_facemap(vec2(+p.z, +p.y) / absmax);
+  } else if (absmax == absy) {
+    if (p.y > 0) t = vec2(0, 0) + EAC_facemap(vec2(+p.x, -p.z) / absmax);
+    else         t = vec2(2, 0) + EAC_facemap(vec2(-p.x, -p.z) / absmax);
+  } else {
+    if (p.z > 0) t = vec2(2, 1) + EAC_facemap(vec2(+p.x, +p.y) / absmax);
+    else         t = vec2(0, 1) + EAC_facemap(vec2(-p.x, +p.y) / absmax);
+  }
+  t /= vec2(3, 2);
+  return t;
+}
+
 void main() {
   vec3 lookAt = look_at(fragPos);
-  float absx = abs(lookAt.x);
-  float absy = abs(lookAt.y);
-  float absz = abs(lookAt.z);
-  float absmax = max(max(absx, absy), absz);
-  int texidx;
-  vec2 texcoord;
-  if (absmax == absx) {
-    texcoord.x = (lookAt.x > 0 ? -lookAt.z : lookAt.z);
-    texcoord.y = lookAt.y;
-    texidx = (lookAt.x > 0 ? 0 : 1);
-  } else if (absmax == absy) {
-    texcoord.x = lookAt.x;
-    texcoord.y = (lookAt.y > 0 ? -lookAt.z : lookAt.z);
-    texidx = (lookAt.y > 0 ? 2 : 3);
-  } else {
-    texcoord.x = (lookAt.z > 0 ? lookAt.x : -lookAt.x);
-    texcoord.y = lookAt.y;
-    texidx = (lookAt.z > 0 ? 4 : 5);
-  }
-  texcoord = (texcoord * vec2(1, -1) / absmax + 1) / 2;
-
-  fragColor = texture(cubemap[texidx], texcoord);
+  vec2 texcoord = EAC_texcoord(lookAt);
+  fragColor = texture(cubemap, texcoord);
 }

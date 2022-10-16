@@ -18,6 +18,8 @@ static inline void assert_gl_(int line)
   }
 }
 
+extern int fb_w, fb_h;
+
 // Shader program
 
 static inline GLuint compile_shader(GLenum type, const char *src) {
@@ -86,6 +88,43 @@ static inline GLuint texture_loadfile(const char *path) {
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pix);
   stbi_image_free(pix);
   return id;
+}
+
+// Render target
+
+typedef struct canvas {
+  GLuint fb, tex;
+  int w, h;
+} canvas;
+
+static inline canvas canvas_new(int w, int h) {
+  GLuint fb, tex;
+
+  glGenFramebuffers(1, &fb);
+  glBindFramebuffer(GL_FRAMEBUFFER, fb);
+
+  glGenTextures(1, &tex);
+  glBindTexture(GL_TEXTURE_2D, tex);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+  glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, tex, 0);
+  GLenum db = GL_COLOR_ATTACHMENT0;
+  glDrawBuffers(1, &db);
+
+  assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
+  return (canvas){fb, tex, w, h};
+}
+
+static inline void canvas_bind(const canvas c) {
+  glBindFramebuffer(GL_FRAMEBUFFER, c.fb);
+  glViewport(0, 0, c.w, c.h);
+}
+
+static inline void canvas_screen() {
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  glViewport(0, 0, fb_w, fb_h);
 }
 
 // Draw state
