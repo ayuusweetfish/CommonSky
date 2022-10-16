@@ -45,7 +45,7 @@ void setup()
   setup_constell();
 }
 
-static bool cursor_capt = true;
+static bool cursor_capt = false;
 
 static const float DEC_MAX = 88 * (M_PI/180);
 
@@ -119,7 +119,6 @@ int main(int argc, char *argv[])
   glfwGetFramebufferSize(window, &fb_w, &fb_h);
   fb_size_changed(window, fb_w, fb_h);
   glfwSetFramebufferSizeCallback(window, fb_size_changed);
-  glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
   glfwSetInputMode(window, GLFW_STICKY_KEYS, GLFW_TRUE);
 
   setup();

@@ -164,7 +164,7 @@ static inline quat de_casteljau_cubic(
   return i30;
 }
 
-#define INTERVAL 24
+#define INTERVAL 1200
 void update_collage()
 {
   if (++T == INTERVAL) {
@@ -190,13 +190,23 @@ void draw_collage()
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   state_uniform1f(st, "aspectRatio", (float)fb_w / fb_h);
   state_uniform4f(st, "viewOri", view_ori.x, view_ori.y, view_ori.z, view_ori.w);
-  for (int _i = 0; _i < 10; _i++) {
+  for (int _i = 0; _i <= 10; _i++) {
     int i = seq[(start + n_imgs - 9 + _i) % n_imgs];
     int n_coeffs = (imgs[i].order + 1) * (imgs[i].order + 2);
     state_uniform2f(st, "projCen", imgs[i].c_ra, imgs[i].c_dec);
     state_uniform1i(st, "ord", imgs[i].order);
     state_uniform2fv(st, "coeff", n_coeffs / 2, imgs[i].coeff);
     texture_bind(imgs[i].tex, 0);
+    state_uniform1f(st, "seed", i);
+    state_uniform1f(st, "entertime", (float)(T + (9.3f - _i) * INTERVAL) / 240);
+    float exittime = (float)(T + (4.3f - _i) * INTERVAL) / 240;
+    state_uniform1f(st, "exittime", exittime);
+    if (exittime >= -2) {
+     // Draw semi-transparent
+      state_uniform1i(st, "transp", 1);
+      state_draw(st);
+    }
+    state_uniform1i(st, "transp", 0);
     state_draw(st);
   }
   glDisable(GL_BLEND);
@@ -206,10 +216,8 @@ void draw_collage()
 
 static inline float dist_score(float o)
 {
-  // A distance of zero contributes equally with a turn of 36 degrees
   if (o < 0.5) return (0.5 - o) * (0.5 - o) * 0.64;
-  // A distance of 120 degrees contributes equally with a turn of 72 degrees
-  if (o > 1.0) return (o - 1.0) * (o - 1.0) * 0.49;
+  if (o > 0.5) return (o - 0.5) * (o - 0.5) * 0.49;
   return 0;
 }
 static inline float sphere_score(int a, int b, int c)
@@ -509,5 +517,5 @@ static inline void find_seq()
   #undef start
   #undef perm
   #undef val
-  free(_pop);
+  free(_poppool);
 }
