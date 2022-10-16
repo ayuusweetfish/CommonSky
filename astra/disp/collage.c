@@ -8,6 +8,9 @@
 
 static draw_state st;
 
+static draw_state st_frozen;
+static canvas can_frozen;
+
 typedef struct collage_img {
   GLuint tex;
   int order;
@@ -37,6 +40,26 @@ void setup_collage()
 {
   st = state_new();
   state_shader_files(&st, "collage.vert", "collage.frag");
+  st.stride = 2;
+  state_attr(st, 0, 0, 2);
+  const float fullscreen_coords[12] = {
+    -1.0, -1.0, -1.0,  1.0,  1.0,  1.0,
+    -1.0, -1.0,  1.0, -1.0,  1.0,  1.0,
+  };
+  state_buffer(&st, 6, fullscreen_coords);
+
+  can_frozen = canvas_new(3200, 2400);
+  canvas_bind(can_frozen);
+  glClearColor(0, 0, 0, 0);
+  glClear(GL_COLOR_BUFFER_BIT);
+  canvas_screen();
+
+  st_frozen = state_new();
+  state_shader_files(&st_frozen, "1.vert", "1.frag");
+  state_uniform1i(st_frozen, "cubemap", 0);
+  st_frozen.stride = 2;
+  state_attr(st_frozen, 0, 0, 2);
+  state_buffer(&st_frozen, 6, fullscreen_coords);
 
   // List images
   const char *const img_path = "../img-processed";
@@ -138,15 +161,6 @@ void setup_collage()
       waypts[i * 3 - 1] = quat_mul(quat_inv(q_offs), waypts[i * 3]);
   }
   // exit(0);
-
-  // Entire screen
-  st.stride = 2;
-  state_attr(st, 0, 0, 2);
-  const float fullscreen_coords[12] = {
-    -1.0, -1.0, -1.0,  1.0,  1.0,  1.0,
-    -1.0, -1.0,  1.0, -1.0,  1.0,  1.0,
-  };
-  state_buffer(&st, 6, fullscreen_coords);
 }
 
 static int T = 0, start = 0;
@@ -186,8 +200,21 @@ void update_collage()
 
 void draw_collage()
 {
+  static float *transp_prog = NULL;
+  if (transp_prog == NULL) {
+    transp_prog = (float *)malloc(sizeof(float) * n_imgs);
+    memset(transp_prog, 0, sizeof(float) * n_imgs);
+  }
+
   glEnable(GL_BLEND);
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+  // Frozen texture
+  state_uniform1f(st_frozen, "aspectRatio", (float)fb_w / fb_h);
+  state_uniform4f(st_frozen, "viewOri", view_ori.x, view_ori.y, view_ori.z, view_ori.w);
+  glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+  texture_bind(can_frozen.tex, 0);
+  state_draw(st_frozen);
+
   state_uniform1f(st, "aspectRatio", (float)fb_w / fb_h);
   state_uniform4f(st, "viewOri", view_ori.x, view_ori.y, view_ori.z, view_ori.w);
   for (int _i = 0; _i <= 10; _i++) {
@@ -202,11 +229,21 @@ void draw_collage()
     float exittime = (float)(T + (4.3f - _i) * INTERVAL) / 240;
     state_uniform1f(st, "exittime", exittime);
     if (exittime >= -2) {
-     // Draw semi-transparent
-      state_uniform1i(st, "transp", 1);
-      state_draw(st);
+      // Draw semi-transparent
+      float prog = (exittime + 2) / 2;
+      if (prog > 1) prog = 1;
+      if (prog > transp_prog[i]) {
+        state_uniform1f(st, "transp_t0", transp_prog[i]);
+        state_uniform1f(st, "transp_t1", prog);
+        canvas_bind(can_frozen);
+        glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+        state_draw(st);
+        transp_prog[i] = prog;
+        canvas_screen();
+      }
     }
-    state_uniform1i(st, "transp", 0);
+    state_uniform1f(st, "transp_t0", -1);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     state_draw(st);
   }
   glDisable(GL_BLEND);

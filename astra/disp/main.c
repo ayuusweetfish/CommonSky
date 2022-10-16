@@ -109,7 +109,7 @@ void draw()
   glEnable(GL_BLEND);
   glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
   texture_bind(can_overlay.tex, 0);
-  state_draw(st);
+  // state_draw(st);
   glDisable(GL_BLEND);
 
   draw_collage();
