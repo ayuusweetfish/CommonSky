@@ -24,7 +24,7 @@ static GLuint cubemap;
 void setup()
 {
   st = state_new();
-  state_shader_files(&st, "cubemap.vert", "cubemap.frag");
+  state_shader_files(&st, "plain.vert", "cubemap.frag");
   st.stride = 2;
   state_attr(st, 0, 0, 2);
   const float fullscreen_coords[12] = {
@@ -85,6 +85,7 @@ void draw()
 
   state_uniform1f(st, "aspectRatio", (float)fb_w / fb_h);
   state_uniform4f(st, "viewOri", view_ori.x, view_ori.y, view_ori.z, view_ori.w);
+  state_uniform1f(st, "baseOpacity", 1);
   texture_bind(cubemap, 0);
   state_draw(st);
 

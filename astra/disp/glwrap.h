@@ -90,6 +90,10 @@ static inline GLuint texture_loadfile(const char *path) {
   return id;
 }
 
+static inline void texture_del(GLuint id) {
+  glDeleteTextures(1, &id);
+}
+
 // Render target
 
 typedef struct canvas {
@@ -114,12 +118,23 @@ static inline canvas canvas_new(int w, int h) {
   glDrawBuffers(1, &db);
 
   assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
-  return (canvas){fb, tex, w, h};
+
+  glClearColor(0, 0, 0, 0);
+  glClear(GL_COLOR_BUFFER_BIT);
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  canvas c = (canvas){fb, tex, w, h};
+  return c;
 }
 
 static inline void canvas_bind(const canvas c) {
   glBindFramebuffer(GL_FRAMEBUFFER, c.fb);
   glViewport(0, 0, c.w, c.h);
+}
+
+static inline void canvas_clear(const canvas c) {
+  canvas_bind(c);
+  glClearColor(0, 0, 0, 0);
+  glClear(GL_COLOR_BUFFER_BIT);
 }
 
 static inline void canvas_screen() {

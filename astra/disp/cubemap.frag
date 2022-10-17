@@ -2,10 +2,11 @@
 in vec2 fragPos;
 out vec4 fragColor;
 
+uniform sampler2D cubemap;
+uniform float baseOpacity;
+
 uniform float aspectRatio;
 uniform vec4 viewOri;
-
-uniform sampler2D cubemap;
 
 const float pi = acos(-1);
 const float projCircleR = 3;
@@ -58,5 +59,5 @@ vec2 EAC_texcoord(vec3 p) {
 void main() {
   vec3 lookAt = look_at(fragPos);
   vec2 texcoord = EAC_texcoord(lookAt);
-  fragColor = texture(cubemap, texcoord);
+  fragColor = texture(cubemap, texcoord) * baseOpacity;
 }

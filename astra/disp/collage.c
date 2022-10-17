@@ -8,10 +8,14 @@
 
 static draw_state st;
 
-static draw_state st_frozen;
+static canvas can_transp;
+static draw_state st_cubetocube;
+
 static canvas can_frozen;
+static draw_state st_cubetoscr;
 
 typedef struct collage_img {
+  char *img_path;
   GLuint tex;
   int order;
   double c_ra, c_dec;
@@ -48,18 +52,23 @@ void setup_collage()
   };
   state_buffer(&st, 6, fullscreen_coords);
 
-  can_frozen = canvas_new(3200, 2400);
-  canvas_bind(can_frozen);
-  glClearColor(0, 0, 0, 0);
-  glClear(GL_COLOR_BUFFER_BIT);
-  canvas_screen();
+  can_transp = canvas_new(3200, 2400);
 
-  st_frozen = state_new();
-  state_shader_files(&st_frozen, "cubemap.vert", "cubemap.frag");
-  state_uniform1i(st_frozen, "cubemap", 0);
-  st_frozen.stride = 2;
-  state_attr(st_frozen, 0, 0, 2);
-  state_buffer(&st_frozen, 6, fullscreen_coords);
+  st_cubetocube = state_new();
+  state_shader_files(&st_cubetocube, "plain.vert", "texblit.frag");
+  state_uniform1i(st_cubetocube, "tex", 0);
+  st_cubetocube.stride = 2;
+  state_attr(st_cubetocube, 0, 0, 2);
+  state_buffer(&st_cubetocube, 6, fullscreen_coords);
+
+  can_frozen = canvas_new(3200, 2400);
+
+  st_cubetoscr = state_new();
+  state_shader_files(&st_cubetoscr, "plain.vert", "cubemap.frag");
+  state_uniform1i(st_cubetoscr, "cubemap", 0);
+  st_cubetoscr.stride = 2;
+  state_attr(st_cubetoscr, 0, 0, 2);
+  state_buffer(&st_cubetoscr, 6, fullscreen_coords);
 
   // List images
   const char *const img_path = "../img-processed";
@@ -85,7 +94,8 @@ void setup_collage()
         cap_imgs = (cap_imgs == 0 ? 8 : cap_imgs * 2);
         imgs = (collage_img *)realloc(imgs, sizeof(collage_img) * cap_imgs);
       }
-      imgs[n_imgs].tex = texture_loadfile(img_file);
+      imgs[n_imgs].img_path = img_file;
+      imgs[n_imgs].tex = 0;
 
       // Load coefficients
       FILE *fp = fopen(coeff_file, "r");
@@ -103,7 +113,6 @@ void setup_collage()
       n_imgs++;
 
       free(coeff_file);
-      free(img_file);
       //if (n_imgs >= 16) break;
     }
   }
@@ -163,8 +172,6 @@ void setup_collage()
   // exit(0);
 }
 
-static int T = 0, start = 0;
-
 static inline quat de_casteljau_cubic(
   quat q0, quat q1, quat q2, quat q3,
   float t)
@@ -178,14 +185,76 @@ static inline quat de_casteljau_cubic(
   return i30;
 }
 
+static inline void draw_image(int i, float entertime, float exittime)
+{
+  int n_coeffs = (imgs[i].order + 1) * (imgs[i].order + 2);
+  state_uniform2f(st, "projCen", imgs[i].c_ra, imgs[i].c_dec);
+  state_uniform1i(st, "ord", imgs[i].order);
+  state_uniform2fv(st, "coeff", n_coeffs / 2, imgs[i].coeff);
+  texture_bind(imgs[i].tex, 0);
+  state_uniform1f(st, "seed", i);
+  state_uniform1f(st, "entertime", entertime);
+  state_uniform1f(st, "exittime", exittime);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  state_draw(st);
+}
+
+// e.g. DELAY = 4
+//                                        + current progress
+//                                        + [start]: opaque layer fade-in
+// 6 -+- 5 -+- 4 -+- 3 --- 2 --- 1 --- 0 -+-
+//    |     |     + [start-4]: transparent layer fade-in
+//    |     + [start-5]: opaque layer fade-out (transparent layer already blit to cubemap)
+//    + [start-6] and beyond: idle
+//
+// Entering new image:
+//                                           + [start]: texture load
+//       6 --- 5 --- 4 --- 3 --- 2 --- 1 --- 0
+//       |     |     + [start-4]: draw to transparent layer
+//       |     + [start-5]: blit transparent layer to cubemap
+//       + [start-6]: texture unload
+#define DELAY 4
 #define INTERVAL 1200
-void update_collage()
+
+static int T = INTERVAL - 1, start = -1;
+
+static inline void _update_collage()
 {
   if (++T == INTERVAL) {
     start = (start + 1) % n_imgs;
     T = 0;
-    printf("%d (%.4f,%.4f,%.4f)\n", seq[start],
-      imgpos[seq[start]].x, imgpos[seq[start]].y, imgpos[seq[start]].z);
+    int i = seq[start];
+    // Load new texture
+    imgs[i].tex = texture_loadfile(imgs[i].img_path);
+    if (start >= DELAY + 2) {
+      int j = seq[start - (DELAY + 2)];
+      texture_del(imgs[j].tex);
+      imgs[j].tex = 0;
+    }
+    // Blit previous transparent layer to frozen
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+    if (start >= DELAY + 1) {
+      canvas_bind(can_frozen);
+      texture_bind(can_transp.tex, 0);
+      state_draw(st_cubetocube);
+    }
+    // Draw current transparent layer
+    if (start >= DELAY) {
+      canvas_bind(can_transp);
+      canvas_clear(can_transp);
+      state_uniform1i(st, "transp", 1);
+      draw_image(seq[start - DELAY], 999, -999);
+    }
+    // Clear on restart
+    if (start == 0) {
+      canvas_clear(can_frozen);
+      canvas_clear(can_transp);
+    }
+    canvas_screen();
+    glDisable(GL_BLEND);
+
+    printf("[%3d] %3d (%.4f,%.4f,%.4f)\n", start, i, imgpos[i].x, imgpos[i].y, imgpos[i].z);
   }
   float t = (float)T / INTERVAL;
   if (start < n_imgs - 1)
@@ -197,54 +266,36 @@ void update_collage()
       t
     );
 }
+void update_collage()
+{
+  for (int i = 5; i > 0; i--) _update_collage();
+}
 
 void draw_collage()
 {
-  static float *transp_prog = NULL;
-  if (transp_prog == NULL) {
-    transp_prog = (float *)malloc(sizeof(float) * n_imgs);
-    memset(transp_prog, 0, sizeof(float) * n_imgs);
-  }
-
   glEnable(GL_BLEND);
+  canvas_screen();
 
   // Frozen texture
-  state_uniform1f(st_frozen, "aspectRatio", (float)fb_w / fb_h);
-  state_uniform4f(st_frozen, "viewOri", view_ori.x, view_ori.y, view_ori.z, view_ori.w);
   glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+  state_uniform1f(st_cubetoscr, "aspectRatio", (float)fb_w / fb_h);
+  state_uniform4f(st_cubetoscr, "viewOri", view_ori.x, view_ori.y, view_ori.z, view_ori.w);
+  state_uniform1f(st_cubetoscr, "baseOpacity", 1);
   texture_bind(can_frozen.tex, 0);
-  state_draw(st_frozen);
+  state_draw(st_cubetoscr);
+
+  // Transparent buffer
+  state_uniform1f(st_cubetoscr, "baseOpacity", (float)T / INTERVAL);
+  texture_bind(can_transp.tex, 0);
+  state_draw(st_cubetoscr);
 
   state_uniform1f(st, "aspectRatio", (float)fb_w / fb_h);
   state_uniform4f(st, "viewOri", view_ori.x, view_ori.y, view_ori.z, view_ori.w);
-  for (int _i = 0; _i <= 10; _i++) {
-    int i = seq[(start + n_imgs - 9 + _i) % n_imgs];
-    int n_coeffs = (imgs[i].order + 1) * (imgs[i].order + 2);
-    state_uniform2f(st, "projCen", imgs[i].c_ra, imgs[i].c_dec);
-    state_uniform1i(st, "ord", imgs[i].order);
-    state_uniform2fv(st, "coeff", n_coeffs / 2, imgs[i].coeff);
-    texture_bind(imgs[i].tex, 0);
-    state_uniform1f(st, "seed", i);
-    state_uniform1f(st, "entertime", (float)(T + (9.3f - _i) * INTERVAL) / 240);
-    float exittime = (float)(T + (4.3f - _i) * INTERVAL) / 240;
-    state_uniform1f(st, "exittime", exittime);
-    if (exittime >= -2) {
-      // Draw semi-transparent
-      float prog = (exittime + 2) / 2;
-      if (prog > 1) prog = 1;
-      if (prog > transp_prog[i]) {
-        state_uniform1f(st, "transp_t0", transp_prog[i]);
-        state_uniform1f(st, "transp_t1", prog);
-        canvas_bind(can_frozen);
-        glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-        state_draw(st);
-        transp_prog[i] = prog;
-        canvas_screen();
-      }
-    }
-    state_uniform1f(st, "transp_t0", -1);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    state_draw(st);
+  state_uniform1i(st, "transp", 0);
+  for (int _i = (start < DELAY + 1 ? start : DELAY + 1); _i >= 0; _i--) {
+    int i = seq[start - _i];
+    draw_image(i, (float)(T + INTERVAL * _i) / 240,
+      (float)(T + INTERVAL * (_i - (DELAY + 1))) / 240);
   }
   glDisable(GL_BLEND);
 }

@@ -6,7 +6,7 @@ out vec4 fragColor;
 
 uniform float seed;
 uniform float entertime, exittime;
-uniform float transp_t0, transp_t1;
+uniform bool transp;
 
 uniform sampler2D image;
 uniform vec2 projCen;
@@ -144,7 +144,7 @@ vec2 maxedgeupdate(vec2 maxedge, vec2 texCoord) {
 }
 void main() {
   vec3 s;
-  if (transp_t0 < 0) s = look_at(fragPos);
+  if (!transp) s = look_at(fragPos);
   else s = EAC_modelcoord((fragPos + 1) / 2);
 
   vec2 maxedge = vec2(0, 0);
@@ -252,7 +252,7 @@ void main() {
   );
 
   // (2) Fade-out
-  if (transp_t0 < 0 && exittime > 0) {
+  if (!transp && exittime > 0) {
     float x = min(exittime / 6, 1);
     // Scaled Beta function
     float k = 4;
@@ -269,8 +269,7 @@ void main() {
   fragColor = texture(image, vec2(texCoord));
   fragColor.a *= clamp((noiserate1 * (1 + headroom1) - noiseval1) / headroom1, 0, 1);
   fragColor.a *= clamp((noiserate2 * (1 + headroom2) - noiseval2) / headroom2, 0, 1);
-  if (transp_t0 >= 0) {
-    if (d_viewcen < transp_t0 || d_viewcen >= transp_t1) discard;
+  if (transp) {
     fragColor.a *= 0.8;
     fragColor.rgb *= fragColor.a;
   }
