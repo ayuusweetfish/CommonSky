@@ -21,13 +21,10 @@ void fb_size_changed(GLFWwindow *window, int w, int h)
 static draw_state st;
 static GLuint cubemap;
 
-static draw_state st_overlay;
-static canvas can_overlay;
-
 void setup()
 {
   st = state_new();
-  state_shader_files(&st, "1.vert", "1.frag");
+  state_shader_files(&st, "cubemap.vert", "cubemap.frag");
   st.stride = 2;
   state_attr(st, 0, 0, 2);
   const float fullscreen_coords[12] = {
@@ -38,21 +35,6 @@ void setup()
 
   cubemap = texture_loadfile("cubemap.png");
   state_uniform1i(st, "cubemap", 0);
-
-  // Overlay
-  st_overlay = state_new();
-  state_shader_files(&st_overlay, "2.vert", "2.frag");
-  st_overlay.stride = 2;
-  state_attr(st_overlay, 0, 0, 2);
-  state_buffer(&st_overlay, 6, fullscreen_coords);
-  can_overlay = canvas_new(3200, 2400);
-  canvas_bind(can_overlay);
-
-  glEnable(GL_BLEND);
-  glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA); // Premultiplied alpha
-  state_draw(st_overlay);
-  glDisable(GL_BLEND);
-  canvas_screen();
 
   setup_collage();
   setup_constell();
@@ -105,12 +87,6 @@ void draw()
   state_uniform4f(st, "viewOri", view_ori.x, view_ori.y, view_ori.z, view_ori.w);
   texture_bind(cubemap, 0);
   state_draw(st);
-
-  glEnable(GL_BLEND);
-  glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-  texture_bind(can_overlay.tex, 0);
-  // state_draw(st);
-  glDisable(GL_BLEND);
 
   draw_collage();
   draw_constell();

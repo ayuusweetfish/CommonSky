@@ -55,7 +55,7 @@ void setup_collage()
   canvas_screen();
 
   st_frozen = state_new();
-  state_shader_files(&st_frozen, "1.vert", "1.frag");
+  state_shader_files(&st_frozen, "cubemap.vert", "cubemap.frag");
   state_uniform1i(st_frozen, "cubemap", 0);
   st_frozen.stride = 2;
   state_attr(st_frozen, 0, 0, 2);
