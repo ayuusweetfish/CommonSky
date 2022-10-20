@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <dirent.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -39,6 +40,11 @@ static float *dist_gc = NULL;
 static float *sphere_scores = NULL;
 
 static quat *waypts = NULL;
+
+static int cmp_img(const void *a, const void *b)
+{
+  return strcmp(((collage_img *)a)->img_path, ((collage_img *)b)->img_path);
+}
 
 void setup_collage()
 {
@@ -116,6 +122,7 @@ void setup_collage()
       //if (n_imgs >= 16) break;
     }
   }
+  qsort(imgs, n_imgs, sizeof(collage_img), cmp_img);
 
   // 3D positions of images
   imgpos = (vec3 *)malloc(sizeof(vec3) * n_imgs);
@@ -405,18 +412,23 @@ static inline void pmx(
     for (o[i] = b[i]; map[o[i]] != -1; o[i] = map[o[i]]) { }
 }
 
-static inline void mut(int *a)
+static inline void mut(int *a, int *scratch)
 {
   int n = n_imgs;
   int l = rand_next() % n, r = rand_next() % (n - 1);
   if (l == r) r = n - 1;
-  if (rand_next() % 2 == 0) {
+  int mode = rand_next() % 4;
+  if (mode <= 1) {
     int t = a[l]; a[l] = a[r]; a[r] = t;
-  } else {
+  } else if (mode == 2) {
     int t = a[l];
     if (l < r) for (int i = l + 1; i <= r; i++) a[i - 1] = a[i];
     else for (int i = l - 1; i >= r; i--) a[i + 1] = a[i];
     a[r] = t;
+  } else {
+    memcpy(scratch, a, sizeof(int) * l);
+    for (int i = l; i < n; i++) a[i - l] = a[i];
+    memcpy(a + (n - l), scratch, sizeof(int) * l);
   }
 }
 
@@ -523,7 +535,7 @@ static inline void find_seq()
   memset(ht, -1, sizeof ht);
 #endif
 
-  const int N_ROUNDS = 1;
+  const int N_ROUNDS = 1000;
   const int N_POP = 10000;
   const int N_REP = 15000;
 #if DEDUP
@@ -576,7 +588,7 @@ static inline void find_seq()
     }
     for (int r = 0; r < N_REP; r++) {
       pmx(perm(parents[r * 2 + 0]), perm(parents[r * 2 + 1]), perm(N_POP + r), pmx_scratch);
-      mut(perm(N_POP + r));
+      mut(perm(N_POP + r), pmx_scratch);
       val(N_POP + r) = eval_seq(perm(N_POP + r));
     #if DEDUP
       // Deduplicate
@@ -595,10 +607,14 @@ static inline void find_seq()
     if ((it + 1) * 100 / N_ROUNDS != it * 100 / N_ROUNDS) {
       clock_t now = clock();
       printf("== It. %d ==  (%.8lf)\n", it + 1, (double)(now - lastclk) / CLOCKS_PER_SEC);
-      for (int i = 0; i < 5; i++) {
-        printf("%9.5f |", val(i));
-        for (int k = 0; k < n_imgs; k++) printf(" %2d", perm(i)[k]); putchar('\n');
-      }
+      for (int i = 0; i < 5; i++) printf("%9.5f\n", val(i));
+      printf("%9.5f\n", val(N_POP - 1));
+      // Save to file
+      FILE *f = fopen("evo.txt", "w");
+      for (int i = 0; i < N_POP; i++)
+        for (int k = 0; k < n_imgs; k++)
+          fprintf(f, "%d%c", perm(i)[k], k == n_imgs - 1 ? '\n' : ' ');
+      fclose(f);
       lastclk = now;
     }
   #if DEDUP
