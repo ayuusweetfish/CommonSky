@@ -1,5 +1,5 @@
-local W = 1080
-local H = 720
+local W = 960
+local H = 600
 
 love.window.setMode(
   W, H,

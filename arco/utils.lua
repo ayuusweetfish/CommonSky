@@ -89,7 +89,7 @@ end
 -- Returns annot, annotlist
 -- If imgdir is nil, new images will not be added automatically.
 -- Run the following after adding new images:
--- find . \( -name "*.jpg" -o -name "*.jpeg" -o -name "*.JPG" -o -name "*.png" \) -exec basename {} \; >> annot.txt
+-- find . \( -name "*.jpg" -o -name "*.jpeg" -o -name "*.JPG" -o -name "*.JPEG" -o -name "*.png" \) -exec basename {} \; >> annot.txt
 local loadannots = function (annotpath, imgdir)
   local annot = {}
   local annotlist = {}
