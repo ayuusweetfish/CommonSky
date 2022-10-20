@@ -270,7 +270,7 @@ void main() {
   fragColor.a *= clamp((noiserate1 * (1 + headroom1) - noiseval1) / headroom1, 0, 1);
   fragColor.a *= clamp((noiserate2 * (1 + headroom2) - noiseval2) / headroom2, 0, 1);
   if (transp) {
-    fragColor.a *= 0.8;
+    fragColor.a *= 0.75;
     fragColor.rgb *= fragColor.a;
   }
 }

@@ -79,7 +79,8 @@ void update()
 
 void draw()
 {
-  glClearColor(0.8, 0.8, 0.82, 1);
+  static int T = 0;
+  glClearColor(0.1, 0.1 + 0 * (1 + sinf((float)(++T) * 0.1)) / 2 * 0.6, 0.2, 1);
   glClear(GL_COLOR_BUFFER_BIT);
   glDisable(GL_CULL_FACE);
 
@@ -87,7 +88,7 @@ void draw()
   state_uniform4f(st, "viewOri", view_ori.x, view_ori.y, view_ori.z, view_ori.w);
   state_uniform1f(st, "baseOpacity", 1);
   texture_bind(cubemap, 0);
-  state_draw(st);
+  //state_draw(st);
 
   draw_collage();
   draw_constell();

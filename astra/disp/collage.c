@@ -199,66 +199,73 @@ static inline void draw_image(int i, float entertime, float exittime)
   state_draw(st);
 }
 
-// e.g. DELAY = 4
-//                                        + current progress
-//                                        + [start]: opaque layer fade-in
-// 6 -+- 5 -+- 4 -+- 3 --- 2 --- 1 --- 0 -+-
-//    |     |     + [start-4]: transparent layer fade-in
-//    |     + [start-5]: opaque layer fade-out (transparent layer already blit to cubemap)
-//    + [start-6] and beyond: idle
+// e.g. D1 = 4, D2 = 2
+//                                              + current progress
+//                                              + [start]: opaque layer fade-in
+// 7 -+- 6 --- 5 -+- 4 -+- 3 --- 2 --- 1 --- 0 -+-
+//    |           |     + [start-4]: transparent layer fade-in
+//    |           + [start-5]: opaque layer fade-out (transparent layer already blit to cubemap)
+//    + [start-7] and beyond: idle
 //
 // Entering new image:
-//                                           + [start]: texture load
-//       6 --- 5 --- 4 --- 3 --- 2 --- 1 --- 0
-//       |     |     + [start-4]: draw to transparent layer
-//       |     + [start-5]: blit transparent layer to cubemap
-//       + [start-6]: texture unload
-#define DELAY 4
+//                                                       + [start + 1]: texture load
+//       7 --- 6 --- 5 --- 4 --- 3 --- 2 --- 1 --- 0 --- 1
+//       |           |     + [start-4]: draw to transparent layer
+//       |           + [start-5]: blit transparent layer to cubemap
+//       + [start-7]: texture unload
+#define D1 4
+#define D2 1
 #define INTERVAL 1200
 
-static int T = INTERVAL - 1, start = -1;
+static int T = INTERVAL - 1, start = -2;
 
 static inline void _update_collage()
 {
   if (++T == INTERVAL) {
     start++;
     T = 0;
-    if (start == n_imgs + DELAY + 2) {
+    if (start == n_imgs + D1 + D2 + 1) {
       puts("Fin!");
     }
   #define inrange(_i) ((_i) >= 0 && (_i) < n_imgs)
-    if (inrange(start)) {
-      int i = seq[start];
+    if (inrange(start + 1)) {
+      int i = seq[start + 1];
       // Load new texture
       imgs[i].tex = texture_loadfile(imgs[i].img_path);
-      printf("[%3d] %3d (%.4f,%.4f,%.4f)\n", start, i, imgpos[i].x, imgpos[i].y, imgpos[i].z);
+      printf("[%3d] %3d (%.4f,%.4f,%.4f)\n", start + 1, i, imgpos[i].x, imgpos[i].y, imgpos[i].z);
     }
-    if (inrange(start - (DELAY + 2))) {
-      int j = seq[start - (DELAY + 2)];
+    if (inrange(start - (D1 + D2 + 1))) {
+      int j = seq[start - (D1 + D2 + 1)];
       texture_del(imgs[j].tex);
       imgs[j].tex = 0;
     }
     // Blit previous transparent layer to frozen
     glEnable(GL_BLEND);
     glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-    if (inrange(start - (DELAY + 1))) {
+    if (inrange(start - (D1 + 1))) {
       canvas_bind(can_frozen);
       texture_bind(can_transp.tex, 0);
       state_draw(st_cubetocube);
     }
     // Draw current transparent layer
-    if (inrange(start - DELAY)) {
+    if (inrange(start - D1)) {
       canvas_bind(can_transp);
       canvas_clear(can_transp);
       state_uniform1i(st, "transp", 1);
-      draw_image(seq[start - DELAY], 999, -999);
+      draw_image(seq[start - D1], 999, -999);
     }
   #undef inrange
     canvas_screen();
     glDisable(GL_BLEND);
   }
   float t = (float)T / INTERVAL;
-  if (start < n_imgs - 1)
+  if (start < 0) {
+    quat d = waypts[0];
+    quat c = quat_mul(quat_minorarc(waypts[1], waypts[0]), d);
+    quat b = quat_mul(quat_minorarc(waypts[2], waypts[1]), c);
+    quat a = quat_mul(quat_minorarc(waypts[3], waypts[2]), b);
+    view_ori = de_casteljau_cubic(a, b, c, d, t);
+  } else if (start < n_imgs - 1) {
     view_ori = de_casteljau_cubic(
       waypts[start * 3 + 0],
       waypts[start * 3 + 1],
@@ -266,6 +273,7 @@ static inline void _update_collage()
       waypts[start * 3 + 3],
       t
     );
+  }
 }
 void update_collage()
 {
@@ -286,7 +294,7 @@ void draw_collage()
   state_draw(st_cubetoscr);
 
   // Transparent buffer
-  if (start - (DELAY + 1) >= 0 && start - (DELAY + 1) < n_imgs) {
+  if (start - (D1 + 1) >= 0 && start - (D1 + 1) < n_imgs) {
     state_uniform1f(st_cubetoscr, "baseOpacity", (float)T / INTERVAL);
     texture_bind(can_transp.tex, 0);
     state_draw(st_cubetoscr);
@@ -296,10 +304,11 @@ void draw_collage()
   state_uniform4f(st, "viewOri", view_ori.x, view_ori.y, view_ori.z, view_ori.w);
   state_uniform1i(st, "transp", 0);
 #define clamp(_x) ((_x) < 0 ? 0 : (_x) >= n_imgs ? (n_imgs - 1) : (_x))
-  for (int i = clamp(start - (DELAY + 1)); i <= clamp(start); i++) {
+  for (int i = clamp(start - (D1 + D2)); i <= clamp(start + 1); i++) {
     int diff = start - i;
-    draw_image(seq[i], (float)(T + INTERVAL * diff) / 240,
-      (float)(T + INTERVAL * (diff - (DELAY + 1))) / 240);
+    int offs = INTERVAL * 0.2;
+    draw_image(seq[i], (float)(T + INTERVAL * diff + offs) / 240,
+      (float)(T + INTERVAL * (diff - (D1 + 1)) + offs) / 240);
   }
 #undef clamp
   glDisable(GL_BLEND);
@@ -514,7 +523,7 @@ static inline void find_seq()
   memset(ht, -1, sizeof ht);
 #endif
 
-  const int N_ROUNDS = 1000;
+  const int N_ROUNDS = 1;
   const int N_POP = 10000;
   const int N_REP = 15000;
 #if DEDUP

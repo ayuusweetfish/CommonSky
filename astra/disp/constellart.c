@@ -28,8 +28,10 @@ static int draw_line(vec3 p0, vec3 p1, float *a)
     vec3 s[6];
     vec3 q1 = vec3_slerp(p0, p1, (float)i / N);
     vec3 q2 = vec3_slerp(p0, p1, (float)(i + 1) / N);
-    vec3 t1 = vec3_mul(sph_tan(p0, p1, (float)i / N), 1e-3);
-    vec3 t2 = vec3_mul(sph_tan(p0, p1, (float)(i + 1) / N), 1e-3);
+    vec3 t1 = vec3_mul(sph_tan(p0, p1, (float)i / N),
+      1e-3 * (0.2 + 0.8 * sinf(i * (M_PI / N))));
+    vec3 t2 = vec3_mul(sph_tan(p0, p1, (float)(i + 1) / N),
+      1e-3 * (0.2 + 0.8 * sinf((i + 1) * (M_PI / N))));
     s[0] = vec3_diff(q1, t1);
     s[1] = vec3_diff(q2, t2);
     s[2] = vec3_add(q1, t1);
