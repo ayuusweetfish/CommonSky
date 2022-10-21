@@ -215,7 +215,7 @@ void main() {
   // Erosion rate
   float headroom1 = 1;
   float noiserate1 = 1;
-  float headroom2 = 0.2;
+  float headroom2 = 1.2;
   float noiserate2 = 1;
 
   // (1) Fade-in
@@ -246,10 +246,13 @@ void main() {
     cos(projCen.y) * sin(projCen.x),
     sin(projCen.y)))));
 
-  noiserate1 *= sqrt(
+  float enterrate = sqrt(
     clamp(d_texcen - 1 + entertime, 0, 1) *
     clamp((entertime * 0.4 - d_viewcen) * 4, 0, 1)
   );
+  float noisevalenter = (snoise((t - seed - 1021) * 12) + 1) / 2;
+  enterrate = clamp((enterrate * 6 - noisevalenter) / 5, 0, 1);
+  noiserate1 *= enterrate;
 
   // (2) Fade-out
   if (!transp && exittime > 0) {
@@ -263,7 +266,7 @@ void main() {
   }
 
   float noiseval1 = (snoise((t + seed) * 80) + 1) / 2;
-  float noiseval2 = (snoise(((t + seed) + 2022) * 30) + 1) / 2;
+  float noiseval2 = (snoise(((t + seed) + 2022) * 15) + 1) / 2;
 
   // Sample texture
   fragColor = texture(image, vec2(texCoord));

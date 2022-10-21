@@ -315,7 +315,7 @@ void draw_collage()
     int diff = start - i;
     int offs = INTERVAL * 0.2;
     draw_image(seq[i], (float)(T + INTERVAL * diff + offs) / 240,
-      (float)(T + INTERVAL * (diff - (D1 + 1)) + offs) / 240);
+      (float)(T + INTERVAL * (diff - (D1 + 1))) / 240);
   }
 #undef clamp
   glDisable(GL_BLEND);
@@ -325,9 +325,8 @@ void draw_collage()
 
 static inline float dist_score(float o)
 {
-  if (o < 0.5) return (0.5 - o) * (0.5 - o) * 0.64;
-  if (o > 0.5) return (o - 0.5) * (o - 0.5) * 0.49;
-  return 0;
+  if (o < 0.1) return (0.1 - o);
+  return (o - 0.1);
 }
 static inline float sphere_score(int a, int b, int c)
 {
@@ -339,7 +338,7 @@ static inline float sphere_score(int a, int b, int c)
     tg_gc[b * n_imgs + a],
     tg_gc[b * n_imgs + c]);
   float angle = acosf(cos_angle);
-  float angle_score = (angle / (0.5*M_PI)) * (angle / (0.5*M_PI));
+  float angle_score = (angle / (0.5*M_PI));
   float o = dist_gc[b * n_imgs + c];
 /*
   printf("- tan A-B: %8.5f,%8.5f,%8.5f\n", tg_gc[b * n_imgs + a].x, tg_gc[b * n_imgs + a].y, tg_gc[b * n_imgs + a].z);
@@ -518,13 +517,6 @@ static inline void find_seq()
         sphere_scores[(i * n_imgs + j) * n_imgs + k] = s3 * s3;
       }
     }
-  /*
-  int a[] = {
-55,174,35,165,122,100,150,95,11,61,19,153,18,112,180,99,145,78,0,16,21,137,5,172,164,38,105,94,54,116,140,73,42,177,79,51,24,89,36,146,167,52,141,127,12,50,173,30,115,163,88,108,148,176,91,64,166,77,149,103,147,98,6,128,155,175,168,29,179,138,85,39,41,71,45,171,47,13,126,113,53,22,49,102,136,93,119,107,1,118,96,83,90,80,162,66,60,43,111,139,169,120,3,32,20,7,158,142,44,10,178,58,125,57,104,97,160,15,114,62,132,92,4,170,33,152,68,87,72,46,82,110,106,28,76,161,9,117,63,17,134,74,144,26,23,154,131,67,69,143,156,121,124,25,65,40,133,59,101,135,123,81,2,84,129,130,86,48,8,151,159,14,27,75,56,34,109,157,31,70,37,181
-  };
-  memcpy(seq, a, sizeof a);
-  return;
-  */
 
 #define DEDUP 0
 #if DEDUP
@@ -554,14 +546,36 @@ static inline void find_seq()
   char *sort_scratch = (char *)malloc(16 * (N_POP + N_REP));
   int *pmx_scratch = (int *)malloc(sizeof(int) * n_imgs);
 
-  for (int i = 0; i < N_POP; i++) {
-    int *p = perm(i);
-    for (int j = 0; j < n_imgs; j++) {
-      int k = rand_next() % (j + 1);
-      p[j] = p[k];
-      p[k] = j;
+  FILE *f_in = fopen("evo.txt", "r");
+  bool loaded = false;
+  if (f_in) {
+    loaded = true;
+    for (int i = 0; i < N_POP; i++) {
+      int *p = perm(i);
+      for (int j = 0; j < n_imgs; j++)
+        if (fscanf(f_in, "%d", &p[j]) != 1) {
+          loaded = false;
+          puts("Invalid previous result, starting from scratch");
+          break;
+        }
+      if (!loaded) break;
     }
-    val(i) = eval_seq(p);
+    fclose(f_in);
+  }
+  if (loaded) {
+    puts("Loaded previous result");
+  } else {
+    for (int i = 0; i < N_POP; i++) {
+      int *p = perm(i);
+      for (int j = 0; j < n_imgs; j++) {
+        int k = rand_next() % (j + 1);
+        p[j] = p[k];
+        p[k] = j;
+      }
+    }
+  }
+  for (int i = 0; i < N_POP; i++) {
+    val(i) = eval_seq(perm(i));
   #if DEDUP
     hash_t h = 0;
     for (int k = 0; k < n_imgs; k++) h = h * n_imgs + perm(i)[k];
@@ -609,12 +623,6 @@ static inline void find_seq()
       printf("== It. %d ==  (%.8lf)\n", it + 1, (double)(now - lastclk) / CLOCKS_PER_SEC);
       for (int i = 0; i < 5; i++) printf("%9.5f\n", val(i));
       printf("%9.5f\n", val(N_POP - 1));
-      // Save to file
-      FILE *f = fopen("evo.txt", "w");
-      for (int i = 0; i < N_POP; i++)
-        for (int k = 0; k < n_imgs; k++)
-          fprintf(f, "%d%c", perm(i)[k], k == n_imgs - 1 ? '\n' : ' ');
-      fclose(f);
       lastclk = now;
     }
   #if DEDUP
@@ -625,6 +633,12 @@ static inline void find_seq()
     }
   #endif
   }
+  // Save to file
+  FILE *f_out = fopen("evo.txt", "w");
+  for (int i = 0; i < N_POP; i++)
+    for (int k = 0; k < n_imgs; k++)
+      fprintf(f_out, "%d%c", perm(i)[k], k == n_imgs - 1 ? '\n' : ' ');
+  fclose(f_out);
 
   memcpy(seq, perm(0), sizeof(int) * n_imgs);
 
