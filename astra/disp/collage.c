@@ -40,12 +40,25 @@ static const float ROTA_STEP = 2*M_PI / 30;
 static const float ROTA_TILT = 2*M_PI / 120;
 
 static vec3 trace[N_CPTS];
-
 static quat *waypts = NULL;
+static inline quat trace_at(float t);
+
+typedef struct fade_in_pt {
+  int id;
+  float time;
+} fade_in_pt;
+fade_in_pt *ins = NULL;
 
 static int cmp_img(const void *a, const void *b)
 {
-  return strcmp(((collage_img *)a)->img_path, ((collage_img *)b)->img_path);
+  return strcmp(((const collage_img *)a)->img_path, ((const collage_img *)b)->img_path);
+}
+
+static int cmp_fade_in_pt(const void *a, const void *b)
+{
+  float ta = ((const fade_in_pt *)a)->time;
+  float tb = ((const fade_in_pt *)b)->time;
+  return (ta < tb ? -1 : ta > tb ? +1 : 0);
 }
 
 static inline void load_collage_files();
@@ -176,7 +189,26 @@ static inline void load_collage_files()
     if (i > 0)
       waypts[i * 3 - 1] = quat_mul(quat_inv(q_offs), waypts[i * 3]);
   }
-  // exit(0);
+
+  // Best positions
+  ins = (fade_in_pt *)malloc(n_imgs * sizeof(fade_in_pt));
+  for (int i = 0; i < n_imgs; i++) {
+    const float step = 0.1;
+    const int n_steps = (int)(N_CPTS / step);
+    float best = 2, best_at;
+    for (int j = 0; j < n_steps; j++) {
+      float t = (float)N_CPTS * (j + (float)i / n_imgs) / n_steps;
+      vec3 p = rot_by_quat((vec3){0, 0, -1}, trace_at(t));
+      float d = vec3_distsq(p, imgpos[i]);
+      if (best > d) { best = d; best_at = t; }
+    }
+    ins[i].id = i;
+    ins[i].time = best_at;
+  }
+  qsort(ins, n_imgs, sizeof(fade_in_pt), cmp_fade_in_pt);
+  for (int i = 0; i < n_imgs; i++)
+    printf("%8.5f %3d (%.5f,%.5f,%.5f)\n", ins[i].time, ins[i].id,
+      imgpos[ins[i].id].x, imgpos[ins[i].id].y, imgpos[ins[i].id].z);
 }
 
 static inline quat de_casteljau_cubic(
@@ -237,12 +269,20 @@ static inline void draw_image(int i, float entertime, float exittime)
 #define INTERVAL 150
 
 static int T = -INTERVAL;
+static int ins_ptr = 0;
 
 static inline void _update_collage()
 {
   T++;
   float t = (float)T / INTERVAL;
   view_ori = trace_at(t);
+
+  while (ins_ptr < n_imgs && t > ins[ins_ptr].time) {
+    int id = ins[ins_ptr].id;
+    printf("%d\n", id);
+    imgs[id].tex = texture_loadfile(imgs[id].img_path);
+    ins_ptr++;
+  }
 }
 void update_collage()
 {
@@ -272,6 +312,9 @@ void draw_collage()
   state_uniform1f(st, "aspectRatio", (float)fb_w / fb_h);
   state_uniform4f(st, "viewOri", view_ori.x, view_ori.y, view_ori.z, view_ori.w);
   state_uniform1i(st, "transp", 0);
+  for (int i = 0; i < ins_ptr; i++) {
+    draw_image(ins[i].id, (float)T / INTERVAL - ins[i].time, -1);
+  }
   glDisable(GL_BLEND);
 }
 
