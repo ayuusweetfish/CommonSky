@@ -166,6 +166,17 @@ static inline quat quat_slerp(quat a, quat b, float t) {
   return quat_mul(quat_pow(quat_minorarc(a, b), t), a);
 }
 
+static inline vec3 sph_tan(vec3 a, vec3 b, float t)
+{
+  float o = acosf(vec3_dot(a, b));
+  // Derivative of slerp
+  vec3 d = vec3_add(
+    vec3_mul(a, -o * cosf((1 - t) * o) / sinf(o)),
+    vec3_mul(b, o * cosf(t * o) / sinf(o))
+  );
+  return d;
+}
+
 // collage.c
 
 void setup_collage();

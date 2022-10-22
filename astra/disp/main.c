@@ -90,7 +90,7 @@ void draw()
   texture_bind(cubemap, 0);
   //state_draw(st);
 
-  draw_collage();
+  //draw_collage();
   draw_constell();
 }
 

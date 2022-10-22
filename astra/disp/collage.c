@@ -33,6 +33,13 @@ static int *seq;
 static inline void evo_(bool does_evo);
 
 #define N_CPTS  320
+#define CHRO_LEN  (N_CPTS * 2)
+#define CHRO_SZ   (CHRO_LEN / 8)
+
+static const float ROTA_STEP = 2*M_PI / 30;
+static const float ROTA_TILT = 2*M_PI / 120;
+
+static vec3 trace[N_CPTS];
 
 static quat *waypts = NULL;
 
@@ -138,20 +145,23 @@ static inline void load_collage_files()
   // Order
   evo_(false);
   // Rotation waypoints
-  waypts = (quat *)malloc(sizeof(quat) * n_imgs * 3);
-  for (int i = 0; i < n_imgs; i++) {
+  waypts = (quat *)malloc(sizeof(quat) * N_CPTS * 3);
+  for (int i = 0; i < N_CPTS; i++) {
     vec3 right = (vec3){0, 0, 0};
-    waypts[i * 3] = rot_from_view(imgpos[seq[i]], right);
+    if (i > 0) right = sph_tan(trace[i - 1], trace[i], 1);
+    if (i < N_CPTS - 1)
+      right = vec3_normalize(vec3_add(right, sph_tan(trace[i], trace[i + 1], 0)));
+    waypts[i * 3] = rot_from_view(trace[i], right);
   }
-  for (int i = 0; i < n_imgs; i++) {
+  for (int i = 0; i < N_CPTS; i++) {
     quat q_in = (quat){0, 0, 0, 1};
     quat q_ou = (quat){0, 0, 0, 1};
     if (i > 0)
       q_in = quat_minorarc(waypts[(i - 1) * 3], waypts[i * 3]);
-    if (i < n_imgs - 1)
+    if (i < N_CPTS - 1)
       q_ou = quat_minorarc(waypts[i * 3], waypts[(i + 1) * 3]);
     if (i == 0) q_in = q_ou;
-    if (i == n_imgs - 1) q_ou = q_in;
+    if (i == N_CPTS - 1) q_ou = q_in;
     quat log_q_in = quat_log(q_in);
     quat log_q_ou = quat_log(q_ou);
     quat q_offs = quat_exp((quat){
@@ -161,7 +171,7 @@ static inline void load_collage_files()
       (log_q_in.w + log_q_ou.w) / 2
     });
     q_offs = quat_pow(q_offs, 1/3.f);
-    if (i < n_imgs - 1)
+    if (i < N_CPTS - 1)
       waypts[i * 3 + 1] = quat_mul(q_offs, waypts[i * 3]);
     if (i > 0)
       waypts[i * 3 - 1] = quat_mul(quat_inv(q_offs), waypts[i * 3]);
@@ -182,6 +192,34 @@ static inline quat de_casteljau_cubic(
   return i30;
 }
 
+static inline quat trace_at(float t)
+{
+  int ti = (int)floorf(t);
+  t -= ti;
+  if (ti < 0) {
+    quat d = waypts[0];
+    quat c = quat_mul(quat_minorarc(waypts[1], waypts[0]), d);
+    quat b = quat_mul(quat_minorarc(waypts[2], waypts[1]), c);
+    quat a = quat_mul(quat_minorarc(waypts[3], waypts[2]), b);
+    return de_casteljau_cubic(a, b, c, d, t);
+  } else if (ti < N_CPTS - 1) {
+    return de_casteljau_cubic(
+      waypts[ti * 3 + 0],
+      waypts[ti * 3 + 1],
+      waypts[ti * 3 + 2],
+      waypts[ti * 3 + 3],
+      t
+    );
+  } else {
+    int n = (N_CPTS - 1) * 3;
+    quat a = waypts[n];
+    quat b = quat_mul(quat_minorarc(waypts[n - 1], waypts[n - 0]), a);
+    quat c = quat_mul(quat_minorarc(waypts[n - 2], waypts[n - 1]), b);
+    quat d = quat_mul(quat_minorarc(waypts[n - 3], waypts[n - 2]), c);
+    return de_casteljau_cubic(a, b, c, d, t);
+  }
+}
+
 static inline void draw_image(int i, float entertime, float exittime)
 {
   int n_coeffs = (imgs[i].order + 1) * (imgs[i].order + 2);
@@ -196,85 +234,19 @@ static inline void draw_image(int i, float entertime, float exittime)
   state_draw(st);
 }
 
-// e.g. D1 = 4, D2 = 2
-//                                              + current progress
-//                                              + [start]: opaque layer fade-in
-// 7 -+- 6 --- 5 -+- 4 -+- 3 --- 2 --- 1 --- 0 -+-
-//    |           |     + [start-4]: transparent layer fade-in
-//    |           + [start-5]: opaque layer fade-out (transparent layer already blit to cubemap)
-//    + [start-7] and beyond: idle
-//
-// Entering new image:
-//                                                       + [start + 1]: texture load
-//       7 --- 6 --- 5 --- 4 --- 3 --- 2 --- 1 --- 0 --- 1
-//       |           |     + [start-4]: draw to transparent layer
-//       |           + [start-5]: blit transparent layer to cubemap
-//       + [start-7]: texture unload
-#define D1 4
-#define D2 1
-#define INTERVAL 1200
+#define INTERVAL 150
 
-static int T = INTERVAL - 1, start = -2;
+static int T = -INTERVAL;
 
 static inline void _update_collage()
 {
-  if (++T == INTERVAL) {
-    start++;
-    T = 0;
-    if (start == n_imgs + D1 + D2 + 1) {
-      puts("Fin!");
-    }
-  #define inrange(_i) ((_i) >= 0 && (_i) < n_imgs)
-    if (inrange(start + 1)) {
-      int i = seq[start + 1];
-      // Load new texture
-      imgs[i].tex = texture_loadfile(imgs[i].img_path);
-      printf("[%3d] %3d (%.4f,%.4f,%.4f)\n", start + 1, i, imgpos[i].x, imgpos[i].y, imgpos[i].z);
-    }
-    if (inrange(start - (D1 + D2 + 1))) {
-      int j = seq[start - (D1 + D2 + 1)];
-      texture_del(imgs[j].tex);
-      imgs[j].tex = 0;
-    }
-    // Blit previous transparent layer to frozen
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-    if (inrange(start - (D1 + 1))) {
-      canvas_bind(can_frozen);
-      texture_bind(can_transp.tex, 0);
-      state_draw(st_cubetocube);
-    }
-    // Draw current transparent layer
-    if (inrange(start - D1)) {
-      canvas_bind(can_transp);
-      canvas_clear(can_transp);
-      state_uniform1i(st, "transp", 1);
-      draw_image(seq[start - D1], 999, -999);
-    }
-  #undef inrange
-    canvas_screen();
-    glDisable(GL_BLEND);
-  }
+  T++;
   float t = (float)T / INTERVAL;
-  if (start < 0) {
-    quat d = waypts[0];
-    quat c = quat_mul(quat_minorarc(waypts[1], waypts[0]), d);
-    quat b = quat_mul(quat_minorarc(waypts[2], waypts[1]), c);
-    quat a = quat_mul(quat_minorarc(waypts[3], waypts[2]), b);
-    view_ori = de_casteljau_cubic(a, b, c, d, t);
-  } else if (start < n_imgs - 1) {
-    view_ori = de_casteljau_cubic(
-      waypts[start * 3 + 0],
-      waypts[start * 3 + 1],
-      waypts[start * 3 + 2],
-      waypts[start * 3 + 3],
-      t
-    );
-  }
+  view_ori = trace_at(t);
 }
 void update_collage()
 {
-  for (int i = 5; i > 0; i--) _update_collage();
+  for (int i = 1; i > 0; i--) _update_collage();
 }
 
 void draw_collage()
@@ -291,7 +263,7 @@ void draw_collage()
   state_draw(st_cubetoscr);
 
   // Transparent buffer
-  if (start - (D1 + 1) >= 0 && start - (D1 + 1) < n_imgs) {
+  if (0) {
     state_uniform1f(st_cubetoscr, "baseOpacity", (float)T / INTERVAL);
     texture_bind(can_transp.tex, 0);
     state_draw(st_cubetoscr);
@@ -300,14 +272,6 @@ void draw_collage()
   state_uniform1f(st, "aspectRatio", (float)fb_w / fb_h);
   state_uniform4f(st, "viewOri", view_ori.x, view_ori.y, view_ori.z, view_ori.w);
   state_uniform1i(st, "transp", 0);
-#define clamp(_x) ((_x) < 0 ? 0 : (_x) >= n_imgs ? (n_imgs - 1) : (_x))
-  for (int i = clamp(start - (D1 + D2)); i <= clamp(start + 1); i++) {
-    int diff = start - i;
-    int offs = INTERVAL * 0.2;
-    draw_image(seq[i], (float)(T + INTERVAL * diff + offs) / 240,
-      (float)(T + INTERVAL * (diff - (D1 + 1))) / 240);
-  }
-#undef clamp
   glDisable(GL_BLEND);
 }
 
@@ -343,14 +307,6 @@ static uint64_t rand_next(void) {
 }
 
 // End of xoshiro256starstar.c
-
-#define CHRO_LEN  (N_CPTS * 2)
-#define CHRO_SZ   (CHRO_LEN / 8)
-
-static const float ROTA_STEP = 2*M_PI / 30;
-static const float ROTA_TILT = 2*M_PI / 120;
-
-static vec3 trace[N_CPTS];
 
 static inline float eval_chro(uint8_t *chro)
 {
