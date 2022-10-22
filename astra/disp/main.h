@@ -54,6 +54,9 @@ static inline float vec3_norm(vec3 a) { return sqrtf(vec3_dot(a, a)); }
 static inline float vec3_dist(vec3 a, vec3 b) {
   return vec3_norm(vec3_diff(a, b));
 }
+static inline float vec3_distsq(vec3 a, vec3 b) {
+  return vec3_dot(vec3_diff(a, b), vec3_diff(a, b));
+}
 static inline vec3 vec3_cross(vec3 a, vec3 b) {
   return (vec3){
     +(a.y * b.z - b.y * a.z),
@@ -168,6 +171,8 @@ static inline quat quat_slerp(quat a, quat b, float t) {
 void setup_collage();
 void update_collage();
 void draw_collage();
+
+void evo();
 
 // constellart.c
 

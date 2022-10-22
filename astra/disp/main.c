@@ -96,6 +96,11 @@ void draw()
 
 int main(int argc, char *argv[])
 {
+  if (argc >= 2 && argv[1][0] == 'e') {
+    evo();
+    exit(0);
+  }
+
   assert(glfwInit());
 
   glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);

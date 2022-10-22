@@ -2,6 +2,8 @@
 
 #include <assert.h>
 #include <dirent.h>
+#include <inttypes.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -28,16 +30,9 @@ size_t n_imgs = 0, cap_imgs = 0;
 static vec3 *imgpos;
 
 static int *seq;
-static inline void find_seq();
+static inline void evo_(bool does_evo);
 
-// Tangent directions
-// [i N + j]: starting from i, heading towards j along the great circle
-static vec3 *tg_gc = NULL;
-static float *dist_gc = NULL;
-// Cached scores
-// [i N^2 + i N + j]: dist_score(i, j)^2
-// [i N^2 + j N + k]: sphere_score(i, j, k)^2
-static float *sphere_scores = NULL;
+#define N_CPTS  320
 
 static quat *waypts = NULL;
 
@@ -46,8 +41,11 @@ static int cmp_img(const void *a, const void *b)
   return strcmp(((collage_img *)a)->img_path, ((collage_img *)b)->img_path);
 }
 
+static inline void load_collage_files();
 void setup_collage()
 {
+  load_collage_files();
+
   st = state_new();
   state_shader_files(&st, "collage.vert", "collage.frag");
   st.stride = 2;
@@ -75,7 +73,10 @@ void setup_collage()
   st_cubetoscr.stride = 2;
   state_attr(st_cubetoscr, 0, 0, 2);
   state_buffer(&st_cubetoscr, 6, fullscreen_coords);
+}
 
+static inline void load_collage_files()
+{
   // List images
   const char *const img_path = "../img-processed";
   size_t img_path_l = strlen(img_path);
@@ -94,7 +95,7 @@ void setup_collage()
       img_file[img_path_l] = '/';
       memcpy(img_file + img_path_l + 1, ent->d_name, l - 6);
       memcpy(img_file + img_path_l + 1 + l - 6, ".png", 4 + 1);
-      printf("Load %s\n", img_file);
+      // printf("Load %s\n", img_file);
 
       if (n_imgs >= cap_imgs) {
         cap_imgs = (cap_imgs == 0 ? 8 : cap_imgs * 2);
@@ -135,22 +136,11 @@ void setup_collage()
   }
 
   // Order
-  find_seq();
-  for (int i = 0; i < n_imgs; i++) {
-    int j = seq[i];
-    printf("(%8.5f,%8.5f,%8.5f) %3d",
-      imgpos[j].x, imgpos[j].y, imgpos[j].z, j);
-    if (i >= 2)
-      printf(" %8.5f", sphere_scores[(seq[i - 2] * n_imgs + seq[i - 1]) * n_imgs + seq[i]]);
-    putchar('\n');
-  }
+  evo_(false);
   // Rotation waypoints
   waypts = (quat *)malloc(sizeof(quat) * n_imgs * 3);
   for (int i = 0; i < n_imgs; i++) {
     vec3 right = (vec3){0, 0, 0};
-    if (i > 0) right = vec3_mul(tg_gc[seq[i] * n_imgs + seq[i - 1]], -1);
-    if (i < n_imgs - 1)
-      right = vec3_normalize(vec3_add(right, tg_gc[seq[i] * n_imgs + seq[i + 1]]));
     waypts[i * 3] = rot_from_view(imgpos[seq[i]], right);
   }
   for (int i = 0; i < n_imgs; i++) {
@@ -323,42 +313,7 @@ void draw_collage()
 
 // Sequence determination by genetic algorithm
 
-static inline float dist_score(float o)
-{
-  if (o < 0.1) return (0.1 - o);
-  return (o - 0.1);
-}
-static inline float sphere_score(int a, int b, int c)
-{
-  // The angle between the two great circles
-  // passing between A-B and B-C, respectively
-  // Equal to: arccos of dot product of derivatives of
-  // -slerp(B, A, t) and slerp(B, C, t) at t = 0
-  float cos_angle = -vec3_dot(
-    tg_gc[b * n_imgs + a],
-    tg_gc[b * n_imgs + c]);
-  float angle = acosf(cos_angle);
-  float angle_score = (angle / (0.5*M_PI));
-  float o = dist_gc[b * n_imgs + c];
-/*
-  printf("- tan A-B: %8.5f,%8.5f,%8.5f\n", tg_gc[b * n_imgs + a].x, tg_gc[b * n_imgs + a].y, tg_gc[b * n_imgs + a].z);
-  printf("- tan B-C: %8.5f,%8.5f,%8.5f\n", tg_gc[b * n_imgs + c].x, tg_gc[b * n_imgs + c].y, tg_gc[b * n_imgs + c].z);
-  printf("- angle: %.6f, dist: %.6f, dist-score: %.6f\n", angle, o, dist_score(o));
-*/
-  return angle_score + dist_score(o);
-}
-
-static inline float eval_seq(int *seq)
-{
-  float score = sphere_scores[seq[0] * (n_imgs + 1) * n_imgs + seq[1]];
-  for (int i = 2; i < n_imgs; i++)
-    score += sphere_scores[(seq[i - 2] * n_imgs + seq[i - 1]) * n_imgs + seq[i]];
-  return score;
-}
-
 // Beginning of xoshiro256starstar.c
-
-#include <stdint.h>
 
 /* This is xoshiro256** 1.0, one of our all-purpose, rock-solid
    generators. It has excellent (sub-ns) speed, a state (256 bits) that is
@@ -389,46 +344,51 @@ static uint64_t rand_next(void) {
 
 // End of xoshiro256starstar.c
 
-static inline void pmx(
-  const int *restrict a,
-  const int *restrict b,
-  int *restrict o,
-  int *restrict map)
-{
-  int n = n_imgs;
-  int l = rand_next() % n, r = rand_next() % (n - 1);
-  if (l == r) r = n - 1;
-  if (l > r) { int t = l; l = r; r = t; }
+#define CHRO_LEN  (N_CPTS * 2)
+#define CHRO_SZ   (CHRO_LEN / 8)
 
-  memset(map, -1, sizeof(int) * n);
-  for (int i = l; i < r; i++) {
-    o[i] = a[i];
-    map[a[i]] = b[i];
+static const float ROTA_STEP = 2*M_PI / 30;
+static const float ROTA_TILT = 2*M_PI / 120;
+
+static vec3 trace[N_CPTS];
+
+static inline float eval_chro(uint8_t *chro)
+{
+  vec3 p = (vec3){1, 0, 0};
+  vec3 a = (vec3){0, 0, -1};
+  for (size_t i = 0; i < N_CPTS; i++) {
+    int codon = (chro[i / 4] >> ((i % 4) * 2)) & 3;
+    a = rot(a, p, ROTA_TILT * (codon * (2.f/3) - 1));
+    p = rot(p, a, ROTA_STEP);
+    trace[i] = p;
   }
-  for (int i = 0; i < l; i++)
-    for (o[i] = b[i]; map[o[i]] != -1; o[i] = map[o[i]]) { }
-  for (int i = r; i < n; i++)
-    for (o[i] = b[i]; map[o[i]] != -1; o[i] = map[o[i]]) { }
+
+  float sum = 0;
+  for (int i = 0; i < n_imgs; i++) {
+    float best = 2;
+    for (int j = 0; j < N_CPTS; j++) {
+      float dsq = vec3_distsq(imgpos[i], trace[j]);
+      if (best > dsq) best = dsq;
+    }
+    sum += best;
+  }
+  return sum;
 }
 
-static inline void mut(int *a, int *scratch)
+static inline void crossover(uint8_t *restrict a, uint8_t *restrict b, uint8_t *restrict c)
 {
-  int n = n_imgs;
-  int l = rand_next() % n, r = rand_next() % (n - 1);
-  if (l == r) r = n - 1;
-  int mode = rand_next() % 4;
-  if (mode <= 1) {
-    int t = a[l]; a[l] = a[r]; a[r] = t;
-  } else if (mode == 2) {
-    int t = a[l];
-    if (l < r) for (int i = l + 1; i <= r; i++) a[i - 1] = a[i];
-    else for (int i = l - 1; i >= r; i--) a[i + 1] = a[i];
-    a[r] = t;
-  } else {
-    memcpy(scratch, a, sizeof(int) * l);
-    for (int i = l; i < n; i++) a[i - l] = a[i];
-    memcpy(a + (n - l), scratch, sizeof(int) * l);
-  }
+  unsigned x = rand_next() % (CHRO_LEN - 1);
+  memcpy(c, a, x / 8);
+  memcpy(c + (x / 8 + 1), b + (x / 8 + 1), CHRO_SZ - (x / 8 + 1));
+  uint8_t a_mask = (2 << (x % 8)) - 1;
+  c[x / 8] = (a[x / 8] & a_mask) | (b[x / 8] & (0xff ^ a_mask));
+}
+
+static inline void mut(uint8_t *a)
+{
+  for (size_t x = 0; x < CHRO_SZ; x++)
+    for (int i = 0; i < 8; i++)
+      if (rand_next() % CHRO_LEN == 0) a[x] ^= (1 << i);
 }
 
 #define RADIX_BITS  8
@@ -481,140 +441,82 @@ static inline void sort_genomes(
 #undef RADIX_MASK
 #undef RADIX_ITS
 
-static inline void find_seq()
+static const char *hexdig = "0123456789abcdef";
+static inline uint8_t hexval(char c)
 {
-  s[0] = 0x8ff333dac9f8d20bULL;
-  s[1] = 0x1b2f7f552f1bca4eULL;
-  s[2] = 0xefbc429aee43484eULL;
-  s[3] = 0x8d600265e6b6a70dULL;
+  if (c >= '0' && c <= '9') return c - '0';
+  if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+  return 0;
+}
 
+static inline void evo_(bool does_evo)
+{
   seq = (int *)malloc(sizeof(int) * n_imgs);
-
-  // Tangent along great circles
-  tg_gc = (vec3 *)realloc(tg_gc, sizeof(vec3) * n_imgs * n_imgs);
-  dist_gc = (float *)realloc(dist_gc, sizeof(float) * n_imgs * n_imgs);
-  for (int i = 0; i < n_imgs; i++) {
-    vec3 a = imgpos[i];
-    for (int j = 0; j < n_imgs; j++) {
-      vec3 b = imgpos[j];
-      float oAB = acosf(vec3_dot(a, b));
-      dist_gc[i * n_imgs + j] = oAB;
-      vec3 dAB = vec3_normalize(vec3_add(
-        vec3_mul(a, -oAB * cosf(oAB) / sinf(oAB)),
-        vec3_mul(b, oAB / sinf(oAB))));
-      tg_gc[i * n_imgs + j] = dAB;
-    }
-  }
-
-  sphere_scores = (float *)realloc(sphere_scores,
-    sizeof(float) * n_imgs * n_imgs * n_imgs);
-  for (int i = 0; i < n_imgs; i++)
-    for (int j = 0; j < n_imgs; j++) if (j != i) {
-      float s2 = dist_score(dist_gc[i * n_imgs + j]);
-      sphere_scores[(i * n_imgs + i) * n_imgs + j] = s2 * s2;
-      for (int k = 0; k < n_imgs; k++) if (k != i && k != j) {
-        float s3 = sphere_score(i, j, k);
-        sphere_scores[(i * n_imgs + j) * n_imgs + k] = s3 * s3;
-      }
-    }
-
-#define DEDUP 0
-#if DEDUP
-  // Hash table for deduplication
-  #define HASH_SIZE 100003
-  typedef uint32_t hash_t;
-  static hash_t ht[HASH_SIZE];
-  memset(ht, -1, sizeof ht);
-#endif
+  for (int i = 0; i < n_imgs; i++) seq[i] = i;
 
   const int N_ROUNDS = 1000;
   const int N_POP = 10000;
-  const int N_REP = 15000;
-#if DEDUP
-  #define size (sizeof(float) + sizeof(int) * n_imgs + sizeof(hash_t))
-  #define hash(_i) (*(hash_t *)(_pop + (_i) * size + sizeof(float) + sizeof(int) * n_imgs))
-#else
-  #define size (sizeof(float) + sizeof(int) * n_imgs)
-#endif
+  const int N_REP = 2000;
+  #define size (sizeof(float) + sizeof(uint8_t) * CHRO_SZ)
   #define start(_i) (_pop + (_i) * size)
-  #define perm(_i) ((int *)(_pop + (_i) * size + sizeof(float)))
+  #define chro(_i) ((uint8_t *)(_pop + (_i) * size + sizeof(float)))
   #define val(_i) (*(float *)(_pop + (_i) * size))
   char *_poppool = (char *)malloc((N_POP + N_REP) * size * 2);
   char *_pop = _poppool, *_npop = _poppool + (N_POP + N_REP) * size;
 
-  int *parents = (int *)malloc(sizeof(int) * N_REP * 2);
   char *sort_scratch = (char *)malloc(16 * (N_POP + N_REP));
   int *pmx_scratch = (int *)malloc(sizeof(int) * n_imgs);
 
   FILE *f_in = fopen("evo.txt", "r");
   bool loaded = false;
   if (f_in) {
-    loaded = true;
+    for (int i = 0; i < 4; i++) {
+      s[i] = 0;
+      for (int b = 0; b < 16; b++)
+        s[i] = (s[i] << 4) | hexval(fgetc(f_in));
+    }
+    fgetc(f_in);
     for (int i = 0; i < N_POP; i++) {
-      int *p = perm(i);
-      for (int j = 0; j < n_imgs; j++)
-        if (fscanf(f_in, "%d", &p[j]) != 1) {
-          loaded = false;
-          puts("Invalid previous result, starting from scratch");
-          break;
-        }
-      if (!loaded) break;
+      for (int j = 0; j < CHRO_SZ; j++) {
+        uint8_t hi = hexval(fgetc(f_in));
+        uint8_t lo = hexval(fgetc(f_in));
+        chro(i)[j] = (hi << 4) | lo;
+      }
+      fgetc(f_in);
+    }
+    if (feof(f_in) || ferror(f_in)) {
+      puts("Invalid previous result, starting from scratch");
+    } else {
+      loaded = true;
     }
     fclose(f_in);
   }
   if (loaded) {
     puts("Loaded previous result");
   } else {
+    s[0] = 0x8ff333dac9f8d20bULL;
+    s[1] = 0x1b2f7f552f1bca4eULL;
+    s[2] = 0xefbc429aee43484eULL;
+    s[3] = 0x8d600265e6b6a70dULL;
     for (int i = 0; i < N_POP; i++) {
-      int *p = perm(i);
-      for (int j = 0; j < n_imgs; j++) {
-        int k = rand_next() % (j + 1);
-        p[j] = p[k];
-        p[k] = j;
-      }
+      uint64_t *p = (uint64_t *)chro(i);
+      for (int j = 0; j < CHRO_SZ / 8; j++) p[j] = rand_next();
     }
   }
+
   for (int i = 0; i < N_POP; i++) {
-    val(i) = eval_seq(perm(i));
-  #if DEDUP
-    hash_t h = 0;
-    for (int k = 0; k < n_imgs; k++) h = h * n_imgs + perm(i)[k];
-    hash(i) = h;
-  #endif
+    val(i) = eval_chro(chro(i));
   }
   clock_t lastclk = clock();
-  for (int it = 0; it < N_ROUNDS; it++) {
-  #if DEDUP
-    // Add population to hash table
-    for (int i = 0; i < N_POP; i++) {
-      int id = hash(i) % HASH_SIZE;
-      while (ht[id] != -1) id = (id + 1) % HASH_SIZE;
-      ht[id] = hash(i);
-    }
-  #endif
+  if (does_evo) for (int it = 0; it < N_ROUNDS; it++) {
     // Offsprings
     for (int r = 0; r < N_REP; r++) {
       int i = rand_next() % N_POP;
       int j = rand_next() % (N_POP - 1);
       if (i == j) j = N_POP - 1;
-      parents[r * 2 + 0] = i;
-      parents[r * 2 + 1] = j;
-    }
-    for (int r = 0; r < N_REP; r++) {
-      pmx(perm(parents[r * 2 + 0]), perm(parents[r * 2 + 1]), perm(N_POP + r), pmx_scratch);
-      mut(perm(N_POP + r), pmx_scratch);
-      val(N_POP + r) = eval_seq(perm(N_POP + r));
-    #if DEDUP
-      // Deduplicate
-      hash_t h = 0;
-      for (int k = 0; k < n_imgs; k++) h = h * n_imgs + perm(N_POP + r)[k];
-      hash(N_POP + r) = h;
-      int id = h % HASH_SIZE;
-      int dup = 0;
-      for (int id = h % HASH_SIZE; ht[id] != -1; id = (id + 1) % HASH_SIZE)
-        if (ht[id] == h) { dup++; if (dup >= 8) break; }
-      if (dup && rand_next() % (1 << (dup * 2)) != 0) { r--; continue; }
-    #endif
+      crossover(chro(i), chro(j), chro(N_POP + r));
+      mut(chro(N_POP + r));
+      val(N_POP + r) = eval_chro(chro(N_POP + r));
     }
     sort_genomes(_pop, N_POP + N_REP, size, _npop, N_POP, sort_scratch);
     char *_t = _pop; _pop = _npop; _npop = _t;
@@ -625,29 +527,41 @@ static inline void find_seq()
       printf("%9.5f\n", val(N_POP - 1));
       lastclk = now;
     }
-  #if DEDUP
-    // Remove population from hash table
-    for (int i = 0; i < N_POP; i++) {
-      int id = hash(i) % HASH_SIZE;
-      while (ht[id] != -1) { ht[id] = -1; id = (id + 1) % HASH_SIZE; }
+    if ((it + 1) * 10 / N_ROUNDS != it * 10 / N_ROUNDS) {
+      // Save to file
+      FILE *f_out = fopen("evo.txt", "w");
+      for (int i = 0; i < 4; i++) {
+        for (int b = 0; b < 16; b++)
+          fputc(hexdig[(s[i] >> ((15 - b) * 4)) & 0xf], f_out);
+      }
+      fputc('\n', f_out);
+      for (int i = 0; i < N_POP; i++) {
+        for (int j = 0; j < CHRO_SZ; j++) {
+          fputc(hexdig[chro(i)[j] >> 4], f_out);
+          fputc(hexdig[chro(i)[j] & 0xf], f_out);
+        }
+        fputc('\n', f_out);
+      }
+      fclose(f_out);
     }
-  #endif
   }
-  // Save to file
-  FILE *f_out = fopen("evo.txt", "w");
-  for (int i = 0; i < N_POP; i++)
-    for (int k = 0; k < n_imgs; k++)
-      fprintf(f_out, "%d%c", perm(i)[k], k == n_imgs - 1 ? '\n' : ' ');
-  fclose(f_out);
 
-  memcpy(seq, perm(0), sizeof(int) * n_imgs);
+  eval_chro(chro(0));
+  for (int i = 0; i < N_CPTS; i++)
+    printf("%c(%.5f,%.5f,%.5f)", i == 0 ? '{' : ',',
+      trace[i].x, trace[i].y, trace[i].z);
+  putchar('}');
+  putchar('\n');
 
-  free(parents);
   free(sort_scratch);
-  free(pmx_scratch);
 
   #undef start
-  #undef perm
-  #undef val
+  #undef chro
   free(_poppool);
+}
+
+void evo()
+{
+  load_collage_files();
+  evo_(true);
 }
