@@ -80,11 +80,11 @@ float snoise(vec2 v) {
 vec4 effect(vec4 color, Image tex, vec2 texture_coords, vec2 screen_coords) {
   vec4 c = Texel(tex, texture_coords) * color;
   float headroom = 0.5;
-  float xi = min(intime / 3, 1);
-  float noiseratei = 1 - exp(-xi * 8) * (1 - xi);
+  float xi = min(intime / 2, 1);
+  float noiseratei = 1 - exp(-xi * 4) * (1 - xi);
   float noisevali = (snoise((seed + 10) * vec2(1500, 2400) + screen_coords / 15) + 1) / 2;
-  float xo = min(outtime / 3, 1);
-  float noiserateo = exp(-xo * 8) * (1 - xo);
+  float xo = min(outtime / 2, 1);
+  float noiserateo = exp(-xo * 4) * (1 - xo);
   float noisevalo = (snoise((seed + 10) * vec2(1500, 2500) + screen_coords / 15) + 1) / 2;
   c.a *= pow(clamp((noiseratei * (1 + headroom) - noisevali) / headroom, 0, 1), 3);
   c.a *= clamp((noiserateo * (1 + headroom) - noisevalo) / headroom, 0, 1);
