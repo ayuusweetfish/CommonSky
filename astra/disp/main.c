@@ -196,7 +196,7 @@ int main(int argc, char *argv[])
   }
 
   if (record_dir != NULL) {
-    for (int i = 0; i < record_skip * 8; i++) update();
+    for (int i = 0; i < record_skip * 4; i++) update();
     stbi_flip_vertically_on_write(1);
   }
 
@@ -228,14 +228,14 @@ int main(int argc, char *argv[])
         update();
       }
     } else {
-      for (int i = 0; i < 8; i++) update();
+      for (int i = 0; i < 4; i++) update();
     }
 
     draw();
     assert_gl();
 
     if (record_dir != NULL) {
-      for (int i = 0, num = T / 8; i < 6; i++) {
+      for (int i = 0, num = T / 4; i < 6; i++) {
         record_numptr[-i] = '0' + num % 10;
         num /= 10;
       }

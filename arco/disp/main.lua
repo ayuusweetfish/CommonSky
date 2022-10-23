@@ -283,11 +283,12 @@ local draw = function ()
 end
 
 if os.getenv('record') ~= nil then
+  love.filesystem.setIdentity('arco-iris')
   love.update = function () end
   local frame = 0
   love.draw = function ()
     update()
-    if T % 8 == 0 then
+    if T % 4 == 0 then
       draw()
       frame = frame + 1
       local name = string.format('arco-iris-%06d.png', frame)
