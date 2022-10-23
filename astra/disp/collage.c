@@ -9,6 +9,8 @@
 #include <string.h>
 #include <time.h>
 
+#include "mcmf.h"
+
 static draw_state st;
 
 static canvas can_transp;
@@ -190,22 +192,66 @@ static inline void load_collage_files()
       waypts[i * 3 - 1] = quat_mul(quat_inv(q_offs), waypts[i * 3]);
   }
 
-  // Best positions
+  // Best positions by bipartite b-matching
   ins = (fade_in_pt *)malloc(n_imgs * sizeof(fade_in_pt));
+
+  const int n_steps = 200;
+  const int n_divs = 12;
+  vec3 *pts = (vec3 *)malloc(sizeof(vec3) * n_steps * n_divs);
+  for (int i = 0; i < n_steps * n_divs; i++)
+    pts[i] = rot_by_quat((vec3){0, 0, -1},
+      trace_at((i + 0.5f) * (N_CPTS - 1) / (n_steps * n_divs)));
+
+  mcmf_init(n_imgs + n_steps + 2);
+  int mcmf_src = n_imgs + n_steps;
+  int mcmf_sink = n_imgs + n_steps + 1;
+  char *best_div_in_step = (char *)malloc(sizeof(char) * n_imgs * n_steps);
   for (int i = 0; i < n_imgs; i++) {
-    const float step = 0.1;
-    const int n_steps = (int)(N_CPTS / step);
-    float best = 2, best_at;
+    mcmf_link(mcmf_src, i, 1, 0);
     for (int j = 0; j < n_steps; j++) {
-      float t = (float)N_CPTS * (j + (float)i / n_imgs) / n_steps;
-      vec3 p = rot_by_quat((vec3){0, 0, -1}, trace_at(t));
-      float d = vec3_distsq(p, imgpos[i]);
-      if (best > d) { best = d; best_at = t; }
+      float best = 2;
+      char bestat;
+      for (char k = 0; k < n_divs; k++) {
+        float d = vec3_distsq(pts[j * n_divs + k], imgpos[i]);
+        if (best > d) { best = d; bestat = k; }
+      }
+      best_div_in_step[i * n_steps + j] = bestat;
+      mcmf_link(i, j + n_imgs, 1, best);
     }
-    ins[i].id = i;
-    ins[i].time = best_at;
   }
+  for (int j = 0; j < n_steps; j++) {
+    mcmf_link(j + n_imgs, mcmf_sink, 1, 0);
+    mcmf_link(j + n_imgs, mcmf_sink, 2, 0.05f);
+  }
+  int flowamt = mcmf_solve(mcmf_src, mcmf_sink);
+  assert(flowamt == n_imgs);
+
+  for (int i = 0; i < n_imgs; i++) {
+    for (int x = mcmf_e_start[i]; x != -1; x = mcmf_e[x].next) {
+      if (mcmf_e[x ^ 1].cap > 0) {
+        int j = mcmf_e[x].dest - n_imgs;
+        ins[i].id = i;
+        ins[i].time =
+          (j * n_divs + best_div_in_step[i * n_steps + j] + 0.5f)
+          * (N_CPTS - 1) / (n_steps * n_divs);
+        break;
+      }
+    }
+  }
+
   qsort(ins, n_imgs, sizeof(fade_in_pt), cmp_fade_in_pt);
+  for (int it = 0; it < 1000; it++) {
+    for (int i = 0; i < n_imgs; i++) {
+      float d = (i == n_imgs - 1 ? N_CPTS - 1 : ins[i + 1].time) - ins[i].time;
+      if (d < 0.9) ins[i].time += (d - 0.9) * 0.01;
+      if (d > 1.5) ins[i].time += (d - 1.5) * 0.003;
+    }
+    for (int i = n_imgs - 1; i >= 0; i--) {
+      float d = ins[i].time - (i == 0 ? 0 : ins[i - 1].time);
+      if (d < 0.9) ins[i].time -= (d - 0.9) * 0.01;
+      if (d > 1.5) ins[i].time -= (d - 1.5) * 0.003;
+    }
+  }
   for (int i = 0; i < n_imgs; i++)
     printf("%8.5f %3d (%.5f,%.5f,%.5f)\n", ins[i].time, ins[i].id,
       imgpos[ins[i].id].x, imgpos[ins[i].id].y, imgpos[ins[i].id].z);
@@ -267,6 +313,7 @@ static inline void draw_image(int i, float entertime, float exittime)
 }
 
 #define INTERVAL 150
+#define LEAD 0.6
 
 static int T = -INTERVAL;
 static int ins_ptr = 0;
@@ -277,7 +324,7 @@ static inline void _update_collage()
   float t = (float)T / INTERVAL;
   view_ori = trace_at(t);
 
-  while (ins_ptr < n_imgs && t > ins[ins_ptr].time) {
+  while (ins_ptr < n_imgs && t > ins[ins_ptr].time - LEAD) {
     int id = ins[ins_ptr].id;
     printf("%d\n", id);
     imgs[id].tex = texture_loadfile(imgs[id].img_path);
@@ -313,7 +360,7 @@ void draw_collage()
   state_uniform4f(st, "viewOri", view_ori.x, view_ori.y, view_ori.z, view_ori.w);
   state_uniform1i(st, "transp", 0);
   for (int i = 0; i < ins_ptr; i++) {
-    draw_image(ins[i].id, (float)T / INTERVAL - ins[i].time, -1);
+    draw_image(ins[i].id, (float)T / INTERVAL - ins[i].time + LEAD, -1);
   }
   glDisable(GL_BLEND);
 }
