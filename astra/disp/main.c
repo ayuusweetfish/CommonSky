@@ -4,6 +4,10 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/stat.h>
+
+#define W 960
+#define H 600
 
 int fb_w, fb_h;
 double view_ra = 0, view_dec = 0;
@@ -96,7 +100,7 @@ void update()
 
 void draw()
 {
-  glClearColor(0.1, 0.1 + 0 * (1 + sinf((float)(++T) * 0.1)) / 2 * 0.6, 0.2, 1);
+  glClearColor(0.09, 0.06, 0.12, 1);
   glClear(GL_COLOR_BUFFER_BIT);
   glDisable(GL_CULL_FACE);
   glEnable(GL_BLEND);
@@ -134,6 +138,7 @@ int main(int argc, char *argv[])
     evo();
     exit(0);
   }
+  const char *record_dir = (argc >= 3 && argv[1][0] == 'r' ? argv[2] : NULL);
 
   assert(glfwInit());
 
@@ -143,7 +148,7 @@ int main(int argc, char *argv[])
   glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
   glfwWindowHint(GLFW_RESIZABLE, GL_TRUE);
 
-  window = glfwCreateWindow(800, 480, "Domus Astris", NULL, NULL);
+  window = glfwCreateWindow(W, H, "Domus Astris", NULL, NULL);
   assert(window != NULL);
 
   glfwMakeContextCurrent(window);
@@ -159,7 +164,8 @@ int main(int argc, char *argv[])
 
   glfwGetFramebufferSize(window, &fb_w, &fb_h);
   fb_size_changed(window, fb_w, fb_h);
-  glfwSetFramebufferSizeCallback(window, fb_size_changed);
+  if (record_dir == NULL)
+    glfwSetFramebufferSizeCallback(window, fb_size_changed);
   glfwSetInputMode(window, GLFW_STICKY_KEYS, GLFW_TRUE);
 
   setup();
@@ -170,33 +176,65 @@ int main(int argc, char *argv[])
   double last_time = glfwGetTime();
   double cum_time = 0;
 
+  char *record_filename = NULL;
+  char *record_numptr = NULL;
+  void *screen_pixels = NULL;
+  if (record_dir != NULL) {
+    size_t len = strlen(record_dir);
+    record_filename = (char *)malloc(len + 20);
+    strcpy(record_filename, record_dir);
+    strcpy(record_filename + len, "/astra-??????.png");
+    record_numptr = record_filename + len + 12;
+    mkdir(record_dir, 0755);
+    screen_pixels = malloc(W * H * 3);
+  }
+
   while (1) {
     glfwSwapBuffers(window);
     glfwPollEvents();
     if (glfwWindowShouldClose(window)) break;
 
-    bool k1 = (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS);
-    if (!cursor_k1 && k1) cursor_capt = !cursor_capt;
-    cursor_k1 = k1;
-    bool k2 = (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS);
-    if (cursor_capt && !cursor_k2 && k2) cursor_capt = false;
-    bool b1 = (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS);
-    if (!cursor_capt && b1) cursor_capt = true;
-    bool b2 = (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS);
-    if (cursor_capt && b2) cursor_capt = false;
-    glfwSetInputMode(window, GLFW_CURSOR,
-      cursor_capt ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
+    if (record_dir == NULL) {
+      bool k1 = (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS);
+      if (!cursor_k1 && k1) cursor_capt = !cursor_capt;
+      cursor_k1 = k1;
+      bool k2 = (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS);
+      if (cursor_capt && !cursor_k2 && k2) cursor_capt = false;
+      bool b1 = (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS);
+      if (!cursor_capt && b1) cursor_capt = true;
+      bool b2 = (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS);
+      if (cursor_capt && b2) cursor_capt = false;
+      glfwSetInputMode(window, GLFW_CURSOR,
+        cursor_capt ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
 
-    double T = glfwGetTime();
-    cum_time += (T - last_time);
-    last_time = T;
-    while (cum_time >= 0) {
-      cum_time -= 1.0 / 240;
-      update();
+      double T = glfwGetTime();
+      cum_time += (T - last_time);
+      last_time = T;
+      float step = (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) ?
+        1.0f / 2400 : 1.0f / 240;
+      while (cum_time >= 0) {
+        cum_time -= step;
+        update();
+      }
+    } else {
+      for (int i = 0; i < 8; i++) update();
     }
 
     draw();
     assert_gl();
+
+    if (record_dir != NULL) {
+      for (int i = 0, num = T / 8; i < 6; i++) {
+        record_numptr[-i] = '0' + num % 10;
+        num /= 10;
+      }
+      puts(record_filename);
+      glFlush();
+      glReadPixels(0, 0, W, H, GL_RGB, GL_UNSIGNED_BYTE, screen_pixels);
+      stbi_write_png(record_filename, W, H, 3, screen_pixels, 0);
+    }
+
+    if (since_global_fade_out >= 360) break;
   }
 
   return 0;

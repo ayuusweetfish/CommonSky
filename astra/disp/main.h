@@ -5,6 +5,8 @@
 
 #include "glwrap.h"
 
+#include "stb_image_write.h"
+
 #include <math.h>
 
 extern int fb_w, fb_h;

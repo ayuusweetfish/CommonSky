@@ -177,8 +177,8 @@ static inline void load_collage_files()
     vec3 right = (vec3){0, 0, 0};
     if (i > 0) right = sph_tan(trace[i - 1], trace[i], 1);
     if (i < N_CPTS - 1)
-      right = vec3_normalize(vec3_add(right, sph_tan(trace[i], trace[i + 1], 0)));
-    waypts[i * 3] = rot_from_view(trace[i], right);
+      right = vec3_add(right, sph_tan(trace[i], trace[i + 1], 0));
+    waypts[i * 3] = rot_from_view(trace[i], vec3_normalize(right));
   }
   for (int i = 0; i < N_CPTS; i++) {
     quat q_in = (quat){0, 0, 0, 1};
@@ -264,9 +264,11 @@ static inline void load_collage_files()
       if (d > 1.5) ins[i].time -= (d - 1.5) * 0.003;
     }
   }
+/*
   for (int i = 0; i < n_imgs; i++)
     printf("%8.5f %3d (%.5f,%.5f,%.5f)\n", ins[i].time, ins[i].id,
       imgpos[ins[i].id].x, imgpos[ins[i].id].y, imgpos[ins[i].id].z);
+*/
 
   out_start = (int *)malloc(sizeof(int) * n_imgs);
   memset(out_start, -1, sizeof(int) * n_imgs);
@@ -292,8 +294,9 @@ static inline quat trace_at(float t)
     t = -t;
     t = 2 * (sqrtf(k * (t + k)) - k);
     return quat_mul(quat_minorarc(trace_at(t), waypts[0]), waypts[0]);
-  } else if (t < N_CPTS - 1) {
+  } else if (t <= N_CPTS - 1) {
     int ti = (int)floorf(t);
+    if (ti >= N_CPTS - 1) ti = N_CPTS - 2;
     t -= ti;
     return de_casteljau_cubic(
       waypts[ti * 3 + 0],
@@ -324,17 +327,18 @@ static inline void draw_image(int i, float entertime, float exittime)
   state_draw(st);
 }
 
-static inline void _update_collage()
+void update_collage()
 {
   T++;
   float t = (float)T / INTERVAL;
   view_ori = trace_at(t);
-  if (T >= INTERVAL * (N_CPTS + 2)) global_fade_out = true;
+  if (T >= INTERVAL * (N_CPTS + 10)) global_fade_out = true;
 
   while (ins_ptr < n_imgs && t > ins[ins_ptr].time - LEAD) {
     int id = ins[ins_ptr].id;
     imgs[id].tex = texture_loadfile(imgs[id].img_path);
     ins_ptr++;
+    // printf("%d/%d\n", ins_ptr, (int)n_imgs);
   }
 
   glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
@@ -366,10 +370,6 @@ static inline void _update_collage()
     imgs[ins[del_ptr].id].tex = 0;
     del_ptr++;
   }
-}
-void update_collage()
-{
-  for (int i = 1; i > 0; i--) _update_collage();
 }
 
 void draw_collage()
@@ -629,11 +629,13 @@ static inline void evo_(bool does_evo)
   }
 
   eval_chro(chro(0));
+/*
   for (int i = 0; i < N_CPTS; i++)
     printf("%c(%.5f,%.5f,%.5f)", i == 0 ? '{' : ',',
       trace[i].x, trace[i].y, trace[i].z);
   putchar('}');
   putchar('\n');
+*/
 
   free(sort_scratch);
 
