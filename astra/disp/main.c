@@ -139,6 +139,9 @@ int main(int argc, char *argv[])
     exit(0);
   }
   const char *record_dir = (argc >= 3 && argv[1][0] == 'r' ? argv[2] : NULL);
+  int record_skip = 0;
+  if (record_dir != NULL && argc >= 4)
+    record_skip = (int)strtol(argv[3], NULL, 10);
 
   assert(glfwInit());
 
@@ -218,6 +221,7 @@ int main(int argc, char *argv[])
       }
     } else {
       for (int i = 0; i < 8; i++) update();
+      if (T / 8 <= record_skip) continue;
     }
 
     draw();

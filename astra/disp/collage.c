@@ -338,7 +338,7 @@ void update_collage()
     int id = ins[ins_ptr].id;
     imgs[id].tex = texture_loadfile(imgs[id].img_path);
     ins_ptr++;
-    // printf("%d/%d\n", ins_ptr, (int)n_imgs);
+    printf("%d/%d\n", ins_ptr, (int)n_imgs);
   }
 
   glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
