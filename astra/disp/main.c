@@ -149,7 +149,10 @@ int main(int argc, char *argv[])
   glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
   glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-  glfwWindowHint(GLFW_RESIZABLE, GL_TRUE);
+  if (record_dir != NULL) {
+    glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
+    glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GL_FALSE);
+  }
 
   window = glfwCreateWindow(W, H, "Domus Astris", NULL, NULL);
   assert(window != NULL);
@@ -192,10 +195,15 @@ int main(int argc, char *argv[])
     screen_pixels = malloc(W * H * 3);
   }
 
+  if (record_dir != NULL) {
+    for (int i = 0; i < record_skip * 8; i++) update();
+    stbi_flip_vertically_on_write(1);
+  }
+
   while (1) {
     glfwSwapBuffers(window);
     glfwPollEvents();
-    if (glfwWindowShouldClose(window)) break;
+    if (record_dir == NULL && glfwWindowShouldClose(window)) break;
 
     if (record_dir == NULL) {
       bool k1 = (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS);
@@ -221,7 +229,6 @@ int main(int argc, char *argv[])
       }
     } else {
       for (int i = 0; i < 8; i++) update();
-      if (T / 8 <= record_skip) continue;
     }
 
     draw();

@@ -128,10 +128,29 @@ static inline quat rot_from_vecs(vec3 xto, vec3 yto, vec3 zto) {
     {xto.y, yto.y, zto.y},
     {xto.z, yto.z, zto.z},
   };
-  float w = sqrtf(1 + M[0][0] + M[1][1] + M[2][2]) / 2;
-  float x = (M[2][1] - M[1][2]) / (4 * w);
-  float y = (M[0][2] - M[2][0]) / (4 * w);
-  float z = (M[1][0] - M[0][1]) / (4 * w);
+  // Largest diagonal entry
+  float maxd = -2;
+  int maxdi;
+  for (int i = 0; i < 3; i++)
+    if (maxd < M[i][i]) { maxd = M[i][i]; maxdi = i; }
+  float r = sqrtf(1 - M[0][0] - M[1][1] - M[2][2] + maxd * 2);
+  float w, x, y, z;
+  if (maxdi == 0) {
+    w = (M[2][1] - M[1][2]) / (r * 2);
+    x = r / 2;
+    y = (M[0][1] + M[1][0]) / (r * 2);
+    z = (M[0][2] + M[2][0]) / (r * 2);
+  } else if (maxdi == 1) {
+    w = (M[0][2] - M[2][0]) / (r * 2);
+    x = (M[1][0] + M[0][1]) / (r * 2);
+    y = r / 2;
+    z = (M[1][2] + M[2][1]) / (r * 2);
+  } else {
+    w = (M[1][0] - M[0][1]) / (r * 2);
+    x = (M[2][0] + M[0][2]) / (r * 2);
+    y = (M[2][1] + M[1][2]) / (r * 2);
+    z = r / 2;
+  }
   return (quat){x, y, z, w};
 }
 static inline quat rot_from_view(vec3 lookat, vec3 right) {
