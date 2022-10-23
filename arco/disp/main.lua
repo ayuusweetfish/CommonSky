@@ -169,9 +169,9 @@ local drawarco = function (moveuprate)
   end
   local skytint = function (x)
     return
-      fade(x, 0.10, 0.90, 0.85) * (1 - moveuprate),
-      fade(x, 0.10, 0.70, 0.92) * (1 - moveuprate),
-      fade(x, 0.15, 0.55, 1.00) * (1 - moveuprate) + moveuprate * 0.05
+      fade(x, 0.10, 0.90, 0.85) * (1 - moveuprate) + moveuprate * (13 / 255),
+      fade(x, 0.10, 0.70, 0.92) * (1 - moveuprate) + moveuprate * (13 / 255),
+      fade(x, 0.15, 0.55, 1.00) * (1 - moveuprate) + moveuprate * (13 / 255)
   end
   love.graphics.setCanvas(nil)
   love.graphics.setShader(skybgshader)
