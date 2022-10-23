@@ -9,6 +9,8 @@ int fb_w, fb_h;
 double view_ra = 0, view_dec = 0;
 quat view_ori = (quat){0, 0, 0, 1};
 
+bool global_fade_out = false;
+
 static GLFWwindow *window;
 
 void fb_size_changed(GLFWwindow *window, int w, int h)
@@ -21,20 +23,29 @@ void fb_size_changed(GLFWwindow *window, int w, int h)
 static draw_state st;
 static GLuint cubemap;
 
+static draw_state st_cover;
+
 void setup()
 {
-  st = state_new();
-  state_shader_files(&st, "plain.vert", "cubemap.frag");
-  st.stride = 2;
-  state_attr(st, 0, 0, 2);
   const float fullscreen_coords[12] = {
     -1.0, -1.0, -1.0,  1.0,  1.0,  1.0,
     -1.0, -1.0,  1.0, -1.0,  1.0,  1.0,
   };
+
+  st = state_new();
+  state_shader_files(&st, "plain.vert", "cubemap.frag");
+  st.stride = 2;
+  state_attr(st, 0, 0, 2);
   state_buffer(&st, 6, fullscreen_coords);
 
   cubemap = texture_loadfile("cubemap.png");
   state_uniform1i(st, "cubemap", 0);
+
+  st_cover = state_new();
+  state_shader_files(&st_cover, "plain.vert", "cover.frag");
+  st_cover.stride = 2;
+  state_attr(st_cover, 0, 0, 2);
+  state_buffer(&st_cover, 6, fullscreen_coords);
 
   setup_collage();
   setup_constell();
@@ -44,8 +55,14 @@ static bool cursor_capt = false;
 
 static const float DEC_MAX = 88 * (M_PI/180);
 
+static int T = 0;
+static int since_global_fade_out = -1;
+
 void update()
 {
+  T++;
+  if (global_fade_out) since_global_fade_out++;
+
   static double last_x = NAN, last_y;
   double x, y;
   glfwGetCursorPos(window, &x, &y);
@@ -79,19 +96,36 @@ void update()
 
 void draw()
 {
-  static int T = 0;
   glClearColor(0.1, 0.1 + 0 * (1 + sinf((float)(++T) * 0.1)) / 2 * 0.6, 0.2, 1);
   glClear(GL_COLOR_BUFFER_BIT);
   glDisable(GL_CULL_FACE);
+  glEnable(GL_BLEND);
 
+/*
   state_uniform1f(st, "aspectRatio", (float)fb_w / fb_h);
   state_uniform4f(st, "viewOri", view_ori.x, view_ori.y, view_ori.z, view_ori.w);
   state_uniform1f(st, "baseOpacity", 1);
   texture_bind(cubemap, 0);
-  //state_draw(st);
+  state_draw(st);
+*/
 
   draw_collage();
   draw_constell();
+
+  float alpha = 0;
+  if (T < 240) {
+    float x = (float)T / 240;
+    alpha = (cosf(x * M_PI) + 1) / 2;
+  } else if (since_global_fade_out >= 0) {
+    float x = (float)(since_global_fade_out + 0.5f) / 240;
+    if (x > 1) x = 1;
+    alpha = (1 - cosf(x * M_PI)) / 2;
+  }
+  if (alpha > 0) {
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    state_uniform1f(st_cover, "alpha", alpha);
+    state_draw(st_cover);
+  }
 }
 
 int main(int argc, char *argv[])
@@ -109,7 +143,7 @@ int main(int argc, char *argv[])
   glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
   glfwWindowHint(GLFW_RESIZABLE, GL_TRUE);
 
-  window = glfwCreateWindow(800, 450, "Domus Astris", NULL, NULL);
+  window = glfwCreateWindow(800, 480, "Domus Astris", NULL, NULL);
   assert(window != NULL);
 
   glfwMakeContextCurrent(window);

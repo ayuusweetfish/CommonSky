@@ -57,7 +57,7 @@ fade_in_pt *ins = NULL;
 #define TRANSP_IN_DUR 48
 #define TRANSP_OUT_DUR 1440
 
-static int T = -INTERVAL;
+static int T = -INTERVAL * 3;
 static int ins_ptr = 0;
 
 static int *out_start;
@@ -287,15 +287,14 @@ static inline quat de_casteljau_cubic(
 
 static inline quat trace_at(float t)
 {
-  int ti = (int)floorf(t);
-  t -= ti;
-  if (ti < 0) {
-    quat d = waypts[0];
-    quat c = quat_mul(quat_minorarc(waypts[1], waypts[0]), d);
-    quat b = quat_mul(quat_minorarc(waypts[2], waypts[1]), c);
-    quat a = quat_mul(quat_minorarc(waypts[3], waypts[2]), b);
-    return de_casteljau_cubic(a, b, c, d, t);
-  } else if (ti < N_CPTS - 1) {
+  const float k = 1.25;
+  if (t < 0) {
+    t = -t;
+    t = 2 * (sqrtf(k * (t + k)) - k);
+    return quat_mul(quat_minorarc(trace_at(t), waypts[0]), waypts[0]);
+  } else if (t < N_CPTS - 1) {
+    int ti = (int)floorf(t);
+    t -= ti;
     return de_casteljau_cubic(
       waypts[ti * 3 + 0],
       waypts[ti * 3 + 1],
@@ -304,12 +303,10 @@ static inline quat trace_at(float t)
       t
     );
   } else {
+    t = t - (N_CPTS - 1);
+    t = 2 * (sqrtf(k * (t + k)) - k);
     int n = (N_CPTS - 1) * 3;
-    quat a = waypts[n];
-    quat b = quat_mul(quat_minorarc(waypts[n - 1], waypts[n - 0]), a);
-    quat c = quat_mul(quat_minorarc(waypts[n - 2], waypts[n - 1]), b);
-    quat d = quat_mul(quat_minorarc(waypts[n - 3], waypts[n - 2]), c);
-    return de_casteljau_cubic(a, b, c, d, t);
+    return quat_mul(quat_minorarc(trace_at((N_CPTS - 1) - t), waypts[n]), waypts[n]);
   }
 }
 
@@ -332,6 +329,7 @@ static inline void _update_collage()
   T++;
   float t = (float)T / INTERVAL;
   view_ori = trace_at(t);
+  if (T >= INTERVAL * (N_CPTS + 2)) global_fade_out = true;
 
   while (ins_ptr < n_imgs && t > ins[ins_ptr].time - LEAD) {
     int id = ins[ins_ptr].id;
@@ -339,7 +337,6 @@ static inline void _update_collage()
     ins_ptr++;
   }
 
-  glEnable(GL_BLEND);
   glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
   if (out_start[out_ptr] >= 0) {
     if (T == out_start[out_ptr] + TRANSP_IN_DUR) {
@@ -377,7 +374,6 @@ void update_collage()
 
 void draw_collage()
 {
-  glEnable(GL_BLEND);
   canvas_screen();
 
   // Frozen texture
@@ -403,7 +399,6 @@ void draw_collage()
     draw_image(ins[i].id, (float)T / INTERVAL - ins[i].time + LEAD,
       out_start[i] == -1 ? -999 : (float)(T - out_start[i] - TRANSP_IN_DUR) / 240);
   }
-  glDisable(GL_BLEND);
 }
 
 // Sequence determination by genetic algorithm

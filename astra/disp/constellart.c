@@ -71,12 +71,10 @@ void setup_constell()
 
 void draw_constell()
 {
-  glEnable(GL_BLEND);
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   state_uniform1f(st, "aspectRatio", (float)fb_w / fb_h);
   state_uniform4f(st, "viewOri", view_ori.x, view_ori.y, view_ori.z, view_ori.w);
   glEnable(GL_CULL_FACE);
   state_draw(st);
   glDisable(GL_CULL_FACE);
-  glDisable(GL_BLEND);
 }

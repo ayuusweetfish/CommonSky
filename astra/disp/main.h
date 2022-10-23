@@ -15,6 +15,8 @@ typedef struct { float x, y, z; } vec3;
 typedef struct { float x, y, z, w; } quat;
 extern quat view_ori;
 
+extern bool global_fade_out;
+
 static inline char *read_all(const char *path)
 {
   FILE *f = fopen(path, "r");

@@ -215,7 +215,7 @@ void main() {
   // Erosion rate
   float headroom1 = 1;
   float noiserate1 = 1;
-  float headroom2 = 1.2;
+  float headroom2 = 3;
   float noiserate2 = 1;
 
   // (1) Fade-in
