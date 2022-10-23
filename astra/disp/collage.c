@@ -51,6 +51,18 @@ typedef struct fade_in_pt {
 } fade_in_pt;
 fade_in_pt *ins = NULL;
 
+#define INTERVAL 150
+#define LEAD 0.6
+#define OUT_START_DELAY 3
+#define TRANSP_IN_DUR 48
+#define TRANSP_OUT_DUR 1440
+
+static int T = -INTERVAL;
+static int ins_ptr = 0;
+
+static int *out_start;
+static int out_ptr = 0, del_ptr = 0;
+
 static int cmp_img(const void *a, const void *b)
 {
   return strcmp(((const collage_img *)a)->img_path, ((const collage_img *)b)->img_path);
@@ -255,6 +267,9 @@ static inline void load_collage_files()
   for (int i = 0; i < n_imgs; i++)
     printf("%8.5f %3d (%.5f,%.5f,%.5f)\n", ins[i].time, ins[i].id,
       imgpos[ins[i].id].x, imgpos[ins[i].id].y, imgpos[ins[i].id].z);
+
+  out_start = (int *)malloc(sizeof(int) * n_imgs);
+  memset(out_start, -1, sizeof(int) * n_imgs);
 }
 
 static inline quat de_casteljau_cubic(
@@ -312,12 +327,6 @@ static inline void draw_image(int i, float entertime, float exittime)
   state_draw(st);
 }
 
-#define INTERVAL 150
-#define LEAD 0.6
-
-static int T = -INTERVAL;
-static int ins_ptr = 0;
-
 static inline void _update_collage()
 {
   T++;
@@ -326,9 +335,39 @@ static inline void _update_collage()
 
   while (ins_ptr < n_imgs && t > ins[ins_ptr].time - LEAD) {
     int id = ins[ins_ptr].id;
-    printf("%d\n", id);
     imgs[id].tex = texture_loadfile(imgs[id].img_path);
     ins_ptr++;
+  }
+
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+  if (out_start[out_ptr] >= 0) {
+    if (T == out_start[out_ptr] + TRANSP_IN_DUR) {
+      // Blit previous transparent layer to frozen
+      canvas_bind(can_frozen);
+      texture_bind(can_transp.tex, 0);
+      state_draw(st_cubetocube);
+      // Clear transparent layer
+      canvas_clear(can_transp);
+      out_ptr++;
+    }
+  }
+  if (out_ptr < n_imgs && out_start[out_ptr] == -1 &&
+      t > ins[out_ptr].time + OUT_START_DELAY) {
+    int id = ins[out_ptr].id;
+    // Draw to transparent layer
+    canvas_bind(can_transp);
+    state_uniform1i(st, "transp", 1);
+    draw_image(ins[out_ptr].id, 999, -999);
+    out_start[out_ptr] = T;
+  }
+  canvas_screen();
+
+  while (del_ptr < out_ptr &&
+      T >= out_start[del_ptr] + TRANSP_IN_DUR + TRANSP_OUT_DUR) {
+    texture_del(imgs[ins[del_ptr].id].tex);
+    imgs[ins[del_ptr].id].tex = 0;
+    del_ptr++;
   }
 }
 void update_collage()
@@ -350,8 +389,9 @@ void draw_collage()
   state_draw(st_cubetoscr);
 
   // Transparent buffer
-  if (0) {
-    state_uniform1f(st_cubetoscr, "baseOpacity", (float)T / INTERVAL);
+  if (out_start[out_ptr] > 0) {
+    float a = (float)(T - out_start[out_ptr]) / TRANSP_IN_DUR;
+    state_uniform1f(st_cubetoscr, "baseOpacity", a < 1 ? sqrtf(a) : 1);
     texture_bind(can_transp.tex, 0);
     state_draw(st_cubetoscr);
   }
@@ -359,8 +399,9 @@ void draw_collage()
   state_uniform1f(st, "aspectRatio", (float)fb_w / fb_h);
   state_uniform4f(st, "viewOri", view_ori.x, view_ori.y, view_ori.z, view_ori.w);
   state_uniform1i(st, "transp", 0);
-  for (int i = 0; i < ins_ptr; i++) {
-    draw_image(ins[i].id, (float)T / INTERVAL - ins[i].time + LEAD, -1);
+  for (int i = del_ptr; i < ins_ptr; i++) {
+    draw_image(ins[i].id, (float)T / INTERVAL - ins[i].time + LEAD,
+      out_start[i] == -1 ? -999 : (float)(T - out_start[i] - TRANSP_IN_DUR) / 240);
   }
   glDisable(GL_BLEND);
 }

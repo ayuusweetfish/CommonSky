@@ -266,7 +266,7 @@ void main() {
   }
 
   float noiseval1 = (snoise((t + seed) * 80) + 1) / 2;
-  float noiseval2 = (snoise(((t + seed) + 2022) * 15) + 1) / 2;
+  float noiseval2 = (snoise(((t + seed) + 2022) * 8) + 1) / 2;
 
   // Sample texture
   fragColor = texture(image, vec2(texCoord));
