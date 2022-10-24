@@ -1,4 +1,4 @@
--- part=1|2|3 record=1
+-- part=1|2|3|4|5|6 record=1
 
 local W = 960
 local H = 600
@@ -147,6 +147,18 @@ elseif part == 5 then
         H * (0.49 + (i - (#desctext + 1) / 2) * 0.08),
         0.5, 0.5)
     end
+  end
+elseif part == 6 then
+  local zhTitle = processHiero('天涯', 64, 0.4)
+  local enTitle = processLatin('Common Sky', 48, 1.75)
+
+  totaltime = 8 * 240
+  drawpart = function ()
+    love.graphics.setShader(dslvshader)
+    dslvshader:send('intime', math.max(0, T / 240 - 1.5))
+    dslvshader:send('outtime', math.max(0, T / 240 - 5.5))
+    drawtext(zhTitle, W * 0.5, H * 0.48, 0.5, 1)
+    drawtext(enTitle, W * 0.5, H * 0.64, 0.5, 1)
   end
 end
 
