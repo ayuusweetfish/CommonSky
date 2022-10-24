@@ -38,8 +38,8 @@ static inline void evo_(bool does_evo);
 #define CHRO_LEN  (N_CPTS * 2)
 #define CHRO_SZ   (CHRO_LEN / 8)
 
-static const float ROTA_STEP = 2*M_PI / 30;
-static const float ROTA_TILT = 2*M_PI / 120;
+static const float ROTA_STEP = 2*M_PI / 60;
+static const float ROTA_TILT = 2*M_PI / 180;
 
 static vec3 trace[N_CPTS];
 static quat *waypts = NULL;
@@ -440,19 +440,25 @@ static inline float eval_chro(uint8_t *chro)
   vec3 a = (vec3){0, 0, -1};
   for (size_t i = 0; i < N_CPTS; i++) {
     int codon = (chro[i / 4] >> ((i % 4) * 2)) & 3;
-    a = rot(a, p, ROTA_TILT * (codon * (2.f/3) - 1));
-    p = rot(p, a, ROTA_STEP);
+    if (codon == 2 || codon == 3)
+      a = rot(a, p, ROTA_TILT * (codon == 2 ? 1 : -1));
+    p = rot(p, a, ROTA_STEP * (codon == 1 ? 0.75f : 1));
     trace[i] = p;
   }
 
   float sum = 0;
   for (int i = 0; i < n_imgs; i++) {
-    float best = 2;
+    float best[5] = {2, 2, 2, 2, 2};
     for (int j = 0; j < N_CPTS; j++) {
       float dsq = vec3_distsq(imgpos[i], trace[j]);
-      if (best > dsq) best = dsq;
+      for (int k = 0; k < 5; k++)
+        if (best[k] > dsq) {
+          for (int t = 5; t > k; t--) best[t] = best[t - 1];
+          best[k] = dsq;
+          break;
+        }
     }
-    sum += best;
+    for (int k = 0; k < 5; k++) sum += best[k] * (5 - k);
   }
   return sum;
 }
