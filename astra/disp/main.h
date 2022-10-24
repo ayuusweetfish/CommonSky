@@ -18,6 +18,7 @@ typedef struct { float x, y, z, w; } quat;
 extern quat view_ori;
 
 extern bool global_fade_out;
+extern float projCircleR;
 
 static inline char *read_all(const char *path)
 {

@@ -14,6 +14,7 @@ double view_ra = 0, view_dec = 0;
 quat view_ori = (quat){0, 0, 0, 1};
 
 bool global_fade_out = false;
+float projCircleR = 3;
 
 static GLFWwindow *window;
 
@@ -24,9 +25,6 @@ void fb_size_changed(GLFWwindow *window, int w, int h)
   glViewport(0, 0, w, h);
 }
 
-static draw_state st;
-static GLuint cubemap;
-
 static draw_state st_cover;
 
 void setup()
@@ -35,15 +33,6 @@ void setup()
     -1.0, -1.0, -1.0,  1.0,  1.0,  1.0,
     -1.0, -1.0,  1.0, -1.0,  1.0,  1.0,
   };
-
-  st = state_new();
-  state_shader_files(&st, "plain.vert", "cubemap.frag");
-  st.stride = 2;
-  state_attr(st, 0, 0, 2);
-  state_buffer(&st, 6, fullscreen_coords);
-
-  cubemap = texture_loadfile("cubemap.png");
-  state_uniform1i(st, "cubemap", 0);
 
   st_cover = state_new();
   state_shader_files(&st_cover, "plain.vert", "cover.frag");
@@ -104,14 +93,6 @@ void draw()
   glClear(GL_COLOR_BUFFER_BIT);
   glDisable(GL_CULL_FACE);
   glEnable(GL_BLEND);
-
-/*
-  state_uniform1f(st, "aspectRatio", (float)fb_w / fb_h);
-  state_uniform4f(st, "viewOri", view_ori.x, view_ori.y, view_ori.z, view_ori.w);
-  state_uniform1f(st, "baseOpacity", 1);
-  texture_bind(cubemap, 0);
-  state_draw(st);
-*/
 
   draw_collage();
   draw_constell();

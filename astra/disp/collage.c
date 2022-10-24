@@ -38,8 +38,8 @@ static inline void evo_(bool does_evo);
 #define CHRO_LEN  (N_CPTS * 2)
 #define CHRO_SZ   (CHRO_LEN / 8)
 
-static const float ROTA_STEP = 2*M_PI / 60;
-static const float ROTA_TILT = 2*M_PI / 180;
+static const float ROTA_STEP = 2*M_PI / 45;
+static const float ROTA_TILT = 2*M_PI / 120;
 
 static vec3 trace[N_CPTS];
 static quat *waypts = NULL;
@@ -51,8 +51,8 @@ typedef struct fade_in_pt {
 } fade_in_pt;
 fade_in_pt *ins = NULL;
 
-#define INTERVAL 150
-#define LEAD 0.6
+#define INTERVAL 120
+#define LEAD 2.0
 #define OUT_START_DELAY 3
 #define TRANSP_IN_DUR 48
 #define TRANSP_OUT_DUR 1440
@@ -207,7 +207,7 @@ static inline void load_collage_files()
   // Best positions by bipartite b-matching
   ins = (fade_in_pt *)malloc(n_imgs * sizeof(fade_in_pt));
 
-  const int n_steps = 200;
+  const int n_steps = 150;
   const int n_divs = 12;
   vec3 *pts = (vec3 *)malloc(sizeof(vec3) * n_steps * n_divs);
   for (int i = 0; i < n_steps * n_divs; i++)
@@ -255,13 +255,13 @@ static inline void load_collage_files()
   for (int it = 0; it < 1000; it++) {
     for (int i = 0; i < n_imgs; i++) {
       float d = (i == n_imgs - 1 ? N_CPTS - 1 : ins[i + 1].time) - ins[i].time;
-      if (d < 0.9) ins[i].time += (d - 0.9) * 0.01;
-      if (d > 1.5) ins[i].time += (d - 1.5) * 0.003;
+      if (d < 1.2) ins[i].time += (d - 1.2) * 0.01;
+      if (d > 1.8) ins[i].time += (d - 1.8) * 0.003;
     }
     for (int i = n_imgs - 1; i >= 0; i--) {
       float d = ins[i].time - (i == 0 ? 0 : ins[i - 1].time);
-      if (d < 0.9) ins[i].time -= (d - 0.9) * 0.01;
-      if (d > 1.5) ins[i].time -= (d - 1.5) * 0.003;
+      if (d < 1.2) ins[i].time -= (d - 1.2) * 0.01;
+      if (d > 1.8) ins[i].time -= (d - 1.8) * 0.003;
     }
   }
 /*
@@ -332,6 +332,10 @@ void update_collage()
   T++;
   float t = (float)T / INTERVAL;
   view_ori = trace_at(t);
+  if (T >= INTERVAL * (N_CPTS + 3)) {
+    float x = (float)(T - INTERVAL * (N_CPTS + 3)) / INTERVAL;
+    projCircleR = 2 + 1 * expf(-0.04 * x * x);
+  }
   if (T >= INTERVAL * (N_CPTS + 10)) global_fade_out = true;
 
   while (ins_ptr < n_imgs && t > ins[ins_ptr].time - LEAD) {
@@ -380,6 +384,7 @@ void draw_collage()
   glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
   state_uniform1f(st_cubetoscr, "aspectRatio", (float)fb_w / fb_h);
   state_uniform4f(st_cubetoscr, "viewOri", view_ori.x, view_ori.y, view_ori.z, view_ori.w);
+  state_uniform1f(st_cubetoscr, "projCircleR", projCircleR);
   state_uniform1f(st_cubetoscr, "baseOpacity", 1);
   texture_bind(can_frozen.tex, 0);
   state_draw(st_cubetoscr);
@@ -394,6 +399,7 @@ void draw_collage()
 
   state_uniform1f(st, "aspectRatio", (float)fb_w / fb_h);
   state_uniform4f(st, "viewOri", view_ori.x, view_ori.y, view_ori.z, view_ori.w);
+  state_uniform1f(st, "projCircleR", projCircleR);
   state_uniform1i(st, "transp", 0);
   for (int i = del_ptr; i < ins_ptr; i++) {
     draw_image(ins[i].id, (float)T / INTERVAL - ins[i].time + LEAD,

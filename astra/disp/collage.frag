@@ -15,9 +15,9 @@ uniform vec2 coeff[28]; // (6+1) * (7+1) / 2
 
 uniform float aspectRatio;
 uniform vec4 viewOri;
+uniform float projCircleR;
 
 const float pi = acos(-1);
-const float projCircleR = 3;
 
 vec4 quat_mul(vec4 p, vec4 q) {
   return vec4(
