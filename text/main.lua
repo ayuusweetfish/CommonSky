@@ -57,6 +57,12 @@ local processLatin = function (s, uppersize, spacingrate)
   end
   return t
 end
+local offsetX = function (t, charindex, amt)
+  t[charindex][2] = t[charindex][2] + amt
+  if charindex < #t then
+    t[charindex + 1][2] = t[charindex + 1][2] - amt
+  end
+end
 local drawchar = function (t, x, y, ax, ay)
   local w, h = t:getDimensions()
   love.graphics.draw(t, x, y, 0, 1, 1, ax * w, ay * h)
@@ -149,8 +155,9 @@ elseif part == 5 then
     end
   end
 elseif part == 6 then
-  local zhTitle = processHiero('天涯', 64, 0.4)
+  local zhTitle = processHiero('天涯比邻', 64, 0.3)
   local enTitle = processLatin('Common Sky', 48, 1.75)
+  offsetX(zhTitle, 2, 3)
 
   totaltime = 8 * 240
   drawpart = function ()

@@ -1,4 +1,4 @@
-# 天涯 / Common Sky
+# 天涯比邻 / Common Sky
 
 实验动画  
 An experimental animation project
