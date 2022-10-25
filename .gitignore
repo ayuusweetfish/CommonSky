@@ -1,6 +1,9 @@
 /arco/img/*.jpg
 /arco/img/*.jpeg
 /arco/img/*.png
+/arco/dedup/dedup
 /astra/align/align
+/astra/disp/disp
+/astra/disp/*.o
 /astra/pipeline/selcrop
 backups/

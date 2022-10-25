@@ -31,6 +31,8 @@ size_t n_imgs = 0, cap_imgs = 0;
 
 static vec3 *imgpos;
 
+#define EVO_SAVE "../../aux/astra_evo.txt"
+
 static int *seq;
 static inline void evo_(bool does_evo);
 
@@ -561,7 +563,7 @@ static inline void evo_(bool does_evo)
   char *sort_scratch = (char *)malloc(16 * (N_POP + N_REP));
   int *pmx_scratch = (int *)malloc(sizeof(int) * n_imgs);
 
-  FILE *f_in = fopen("evo.txt", "r");
+  FILE *f_in = fopen(EVO_SAVE, "r");
   bool loaded = false;
   if (f_in) {
     for (int i = 0; i < 4; i++) {
@@ -623,7 +625,7 @@ static inline void evo_(bool does_evo)
     }
     if ((it + 1) * 10 / N_ROUNDS != it * 10 / N_ROUNDS) {
       // Save to file
-      FILE *f_out = fopen("evo.txt", "w");
+      FILE *f_out = fopen(EVO_SAVE, "w");
       for (int i = 0; i < 4; i++) {
         for (int b = 0; b < 16; b++)
           fputc(hexdig[(s[i] >> ((15 - b) * 4)) & 0xf], f_out);

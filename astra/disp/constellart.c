@@ -7,6 +7,8 @@ static draw_state st;
 
 #include "constelldb.h"
 
+#define CONSTELL_DIR "../../aux/constell"
+
 static inline vec3 sph_tan_perp(vec3 a, vec3 b, float t)
 {
   vec3 d = sph_tan(a, b, t);
@@ -48,7 +50,7 @@ void setup_constell()
   state_shader_files(&st, "constellline.vert", "constellline.frag");
 
   // Load constellation database
-  load_constelldb("constell/hip2_j2000.dat", "constell/constellationship.fab");
+  load_constelldb(CONSTELL_DIR "/hip2_j2000.dat", CONSTELL_DIR "/constellationship.fab");
 
   // Upload lines to the buffer
   st.stride = 3;
