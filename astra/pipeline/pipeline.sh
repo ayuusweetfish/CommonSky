@@ -5,7 +5,7 @@ img_proc=../img-processed
 
 solve_field=${solve_field:-../../aux/astrometry.net-install/bin/solve-field}
 
-if [ ! -f "$img_proc" ]; then
+if [ ! -d "$img_proc" ]; then
   mkdir $img_proc
 fi
 
