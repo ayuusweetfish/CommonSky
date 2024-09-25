@@ -6,4 +6,11 @@
 /astra/disp/disp
 /astra/disp/*.o
 /astra/pipeline/selcrop
+/aux/astrometry.net-0.96/
+/aux/astrometry.net-index/
+/aux/astrometry.net-install/
+/aux/cfitsio-4.5.0/
+/aux/glfw-3.4/
+/aux/netpbm-10.86.42/
+/aux/raylib-4.2.0/
 backups/

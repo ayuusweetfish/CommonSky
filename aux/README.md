@@ -1,0 +1,15 @@
+- glfw-3.4: https://github.com/glfw/glfw/releases/tag/3.4
+- raylib-4.2.0: https://github.com/raysan5/raylib/releases/tag/4.2.0
+- cfitsio-4.5.0: https://heasarc.gsfc.nasa.gov/fitsio/
+- astrometry.net-0.96: http://astrometry.net/downloads/
+  - `CFITS_INC="-I${PWD}/../../aux/cfitsio-4.5.0" CFITS_LIB="${PWD}/../../aux/cfitsio-4.5.0/*.o -lm -lcurl -lz" INSTALL_DIR=${PWD}/../astrometry.net-install make install`
+  - `cd ..; python3 -m venv v && source v/bin/activate && pip3 install -r astrometry.net-requirements.txt`
+<!--
+- netpbm-10.86.42: https://netpbm.sourceforge.net/getting_netpbm.php
+  - macOS: `LC_CTYPE=C LANG=C find ./ -type f -exec sed -i -e 's/_XOPEN_SOURCE 500/_XOPEN_SOURCE 600/g' {} \;`, configure: static linkage
+-->
+- astrometry.net-index: http://broiler.astrometry.net/~dstn/4100/
+  - `curl -L --remote-name-all http://broiler.astrometry.net/~dstn/4100/index-41{07..19}.fits`
+  - `curl -L --remote-name-all https://portal.nersc.gov/project/cosmo/temp/dstn/index-5200/LITE/index-52{03..06}-{00..47}.fits`
+  - `rm -rf astrometry.net-install/data; ln -s ../astrometry.net-index astrometry.net-install/data`
+  - Modify astrometry.net-install/etc/astrometry.cfg

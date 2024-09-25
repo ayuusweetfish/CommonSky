@@ -1,4 +1,4 @@
-// gcc -o align -O2 align.c readfits.c polyfit.c constell.c -I ../../aux -I ~/Downloads/raylib-4.2.0/src ~/Downloads/raylib-4.2.0/build/raylib/libraylib.a -framework OpenGL -framework Cocoa -framework IOKit -lcfitsio
+// gcc -o align -O2 align.c readfits.c polyfit.c constell.c -I ../../aux -I ../../aux/raylib-4.2.0/include ../../aux/raylib-4.2.0/lib/libraylib.a -I ../../aux/cfitsio-4.5.0 ../../aux/cfitsio-4.5.0/*.o -framework OpenGL -framework Cocoa -framework IOKit -lm -lcurl -lz
 // ./align ../img-processed/32186236600_7605b3bdec_b{.png,.axy,.rdls,-indx.xyls,.corr,.wcs,.refi,.coeff}
 #include "raylib.h"
 

@@ -1,0 +1,2 @@
+# https://imagemagick.org/script/escape.php
+identify -format "%M: %m raw, %w by %h" "$1"

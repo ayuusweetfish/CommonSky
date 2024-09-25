@@ -1,5 +1,5 @@
-EXTRAINC = -I../../aux -I../../aux/glad
-LDFLAGS = -lglfw
+EXTRAINC = -I../../aux -I../../aux/glad -I../../aux/glfw-3.4/include
+LDFLAGS = -L../../aux/glfw-3.4/lib-x86_64 -lglfw3 -framework Cocoa -framework OpenGL -framework IOKit
 RM ?= rm
 
 disp: main.c constellart.c collage.c glad.o stb.o

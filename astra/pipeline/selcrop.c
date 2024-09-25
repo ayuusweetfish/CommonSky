@@ -1,4 +1,4 @@
-// gcc -o selcrop -O2 selcrop.c -I ~/Downloads/raylib-4.2.0/src ~/Downloads/raylib-4.2.0/build/raylib/libraylib.a -framework OpenGL -framework Cocoa -framework IOKit
+// gcc -o selcrop -O2 selcrop.c -I ../../aux/raylib-4.2.0/include ../../aux/raylib-4.2.0/lib/libraylib.a -framework OpenGL -framework Cocoa -framework IOKit
 #include "raylib.h"
 
 #include <math.h> // ceilf
